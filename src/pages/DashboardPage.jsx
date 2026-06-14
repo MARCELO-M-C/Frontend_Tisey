@@ -1,33 +1,8 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
+import { getAdminDashboardData, formatWaitingTime } from '../services/dashboardService'
 import './DashboardPage.css'
-
-const todayStats = [
-  {
-    label: 'Órdenes activas',
-    value: '8',
-    helper: 'En proceso ahora',
-    status: 'normal',
-  },
-  {
-    label: 'En cocina',
-    value: '5',
-    helper: 'Pendientes de preparar',
-    status: 'warning',
-  },
-  {
-    label: 'Listas para cobrar',
-    value: '3',
-    helper: 'Esperando facturación',
-    status: 'success',
-  },
-  {
-    label: 'Ventas de hoy',
-    value: 'C$ 4,850',
-    helper: 'Total acumulado',
-    status: 'normal',
-  },
-]
 
 const quickActions = [
   {
@@ -53,53 +28,95 @@ const quickActions = [
   },
   {
     title: 'Administrar',
-    description: 'Productos, usuarios, mesas y configuración.',
+    description: 'Productos, usuarios, órdenes y configuración.',
     to: '/admin',
     icon: '⚙️',
     variant: 'dark',
   },
 ]
 
-const alerts = [
-  {
-    title: 'Mesa 4',
-    message: 'Tiene una orden en cocina desde hace 18 minutos.',
-    level: 'warning',
-  },
-  {
-    title: 'Caja',
-    message: 'Hay 3 órdenes listas para cobrar.',
-    level: 'success',
-  },
-  {
-    title: 'Inventario',
-    message: 'Revisar productos con baja disponibilidad.',
-    level: 'info',
-  },
-]
-
-const tableStatus = [
-  { name: 'Mesa 1', status: 'Libre' },
-  { name: 'Mesa 2', status: 'Ocupada' },
-  { name: 'Mesa 3', status: 'Libre' },
-  { name: 'Mesa 4', status: 'En cocina' },
-  { name: 'Mesa 5', status: 'Por cobrar' },
-  { name: 'Mesa 6', status: 'Ocupada' },
-]
-
 export default function DashboardPage() {
   const { user, logout } = useAuth()
+
+  const [dashboardData, setDashboardData] = useState(null)
+  const [loadingDashboard, setLoadingDashboard] = useState(true)
+  const [dashboardError, setDashboardError] = useState('')
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        setDashboardError('')
+
+        const data = await getAdminDashboardData()
+
+        setDashboardData(data)
+        setLastUpdatedAt(new Date())
+      } catch {
+        setDashboardError('No se pudo cargar el resumen del dashboard.')
+      } finally {
+        setLoadingDashboard(false)
+      }
+    }
+
+    loadDashboard()
+
+    const intervalId = window.setInterval(loadDashboard, 30000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [])
+
+  const todayStats = [
+    {
+      label: 'Órdenes de hoy',
+      value: dashboardData?.stats.todayOrders ?? 0,
+      helper: 'Realizadas por meseros',
+      status: 'normal',
+    },
+    {
+      label: 'En cocina',
+      value: dashboardData?.stats.kitchenOrders ?? 0,
+      helper: 'Pendientes o en preparación',
+      status: 'warning',
+    },
+    {
+      label: 'Listas para cobrar',
+      value: dashboardData?.stats.readyToBillOrders ?? 0,
+      helper: 'Esperando facturación',
+      status: 'success',
+    },
+    {
+      label: 'Críticas',
+      value: dashboardData?.stats.criticalOrders ?? 0,
+      helper: `Más de ${dashboardData?.config.criticalMinutes ?? 30} minutos`,
+      status: 'danger',
+    },
+  ]
+
+  const alerts = dashboardData?.alerts ?? []
+  const lateOrders = dashboardData?.lateOrders ?? []
+  const waiterSummary = dashboardData?.waiterSummary ?? []
 
   return (
     <main className="admin-dashboard">
       <section className="dashboard-hero">
         <div>
           <span className="dashboard-eyebrow">Panel principal</span>
+
           <h1>Hola, {user?.firstName || user?.username || 'Administrador'}</h1>
+
           <p>
-            Este es el resumen general del restaurante. Desde aquí puedes entrar
-            rápido a órdenes, cocina, facturación y administración.
+            Este es el resumen del restaurante. Aquí puedes revisar órdenes,
+            cocina, facturación y alertas importantes sin cambiar de pestaña.
           </p>
+
+          {lastUpdatedAt && (
+            <small className="dashboard-last-update">
+              Última actualización: {formatTime(lastUpdatedAt)}
+            </small>
+          )}
         </div>
 
         <div className="dashboard-hero-actions">
@@ -113,11 +130,17 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {dashboardError && (
+        <section className="dashboard-error">
+          {dashboardError}
+        </section>
+      )}
+
       <section className="dashboard-stats-grid">
         {todayStats.map((stat) => (
           <article className={`dashboard-stat stat-${stat.status}`} key={stat.label}>
             <span>{stat.label}</span>
-            <strong>{stat.value}</strong>
+            <strong>{loadingDashboard ? '...' : stat.value}</strong>
             <small>{stat.helper}</small>
           </article>
         ))}
@@ -154,8 +177,55 @@ export default function DashboardPage() {
           <section className="dashboard-card">
             <div className="dashboard-section-header">
               <div>
-                <h2>Estado de mesas</h2>
-                <p>Vista rápida para saber qué necesita atención.</p>
+                <h2>Órdenes con demora</h2>
+                <p>
+                  Advertencia desde {dashboardData?.config.warningMinutes ?? 20} min.
+                  Crítico desde {dashboardData?.config.criticalMinutes ?? 30} min.
+                </p>
+              </div>
+
+              <Link to="/kitchen" className="dashboard-small-link">
+                Ver cocina
+              </Link>
+            </div>
+
+            {loadingDashboard ? (
+              <div className="empty-dashboard-state">
+                Cargando órdenes...
+              </div>
+            ) : lateOrders.length > 0 ? (
+              <div className="late-orders-list">
+                {lateOrders.map((order) => (
+                  <div
+                    className={`late-order-item late-${order.delayLevel}`}
+                    key={order.id}
+                  >
+                    <div>
+                      <strong>{order.orderCode || `Orden #${order.id}`}</strong>
+
+                      <p>
+                        {getWaiterName(order)}
+                        {' · '}
+                        {getOrderStatusLabel(order.status)}
+                      </p>
+                    </div>
+
+                    <span>{formatWaitingTime(order.minutesWaiting)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-dashboard-state">
+                No hay órdenes demoradas por ahora.
+              </div>
+            )}
+          </section>
+
+          <section className="dashboard-card">
+            <div className="dashboard-section-header">
+              <div>
+                <h2>Órdenes por mesero</h2>
+                <p>Resumen de órdenes realizadas hoy.</p>
               </div>
 
               <Link to="/orders" className="dashboard-small-link">
@@ -163,16 +233,37 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="table-status-grid">
-              {tableStatus.map((table) => (
-                <div className="table-status-item" key={table.name}>
-                  <strong>{table.name}</strong>
-                  <span className={getTableStatusClass(table.status)}>
-                    {table.status}
-                  </span>
-                </div>
-              ))}
-            </div>
+            {loadingDashboard ? (
+              <div className="empty-dashboard-state">
+                Cargando resumen de meseros...
+              </div>
+            ) : waiterSummary.length > 0 ? (
+              <div className="waiter-summary-list">
+                {waiterSummary.map((waiter) => (
+                  <div className="waiter-summary-item" key={waiter.id}>
+                    <div>
+                      <strong>{waiter.name}</strong>
+                      <p>{waiter.totalOrders} orden(es) tomadas hoy</p>
+                    </div>
+
+                    <div className="waiter-summary-badges">
+                      <span>{waiter.kitchenOrders} en cocina</span>
+                      <span>{waiter.readyToBillOrders} por cobrar</span>
+
+                      {waiter.delayedOrders > 0 && (
+                        <span className="badge-danger-soft">
+                          {waiter.delayedOrders} con demora
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-dashboard-state">
+                Todavía no hay órdenes tomadas hoy.
+              </div>
+            )}
           </section>
         </div>
 
@@ -185,14 +276,23 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="alerts-list">
-              {alerts.map((alert) => (
-                <div className={`dashboard-alert alert-${alert.level}`} key={alert.title}>
-                  <strong>{alert.title}</strong>
-                  <p>{alert.message}</p>
-                </div>
-              ))}
-            </div>
+            {loadingDashboard ? (
+              <div className="empty-dashboard-state">
+                Cargando alertas...
+              </div>
+            ) : (
+              <div className="alerts-list">
+                {alerts.map((alert) => (
+                  <div
+                    className={`dashboard-alert alert-${alert.level}`}
+                    key={`${alert.title}-${alert.level}`}
+                  >
+                    <strong>{alert.title}</strong>
+                    <p>{alert.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="dashboard-card help-card">
@@ -205,12 +305,17 @@ export default function DashboardPage() {
 
             <div className="help-step">
               <span>2</span>
-              <p>Cocina revisa las órdenes desde “Ver cocina”.</p>
+              <p>Cocina revisa y prepara las órdenes desde “Ver cocina”.</p>
             </div>
 
             <div className="help-step">
               <span>3</span>
               <p>Cuando la orden esté lista, entra en “Facturar”.</p>
+            </div>
+
+            <div className="help-step">
+              <span>4</span>
+              <p>Las órdenes demoradas aparecerán con alerta amarilla o roja.</p>
             </div>
           </section>
         </aside>
@@ -219,11 +324,33 @@ export default function DashboardPage() {
   )
 }
 
-function getTableStatusClass(status) {
-  if (status === 'Libre') return 'table-badge table-free'
-  if (status === 'Ocupada') return 'table-badge table-busy'
-  if (status === 'En cocina') return 'table-badge table-kitchen'
-  if (status === 'Por cobrar') return 'table-badge table-billing'
+function getWaiterName(order) {
+  return (
+    order.waiter?.fullName ||
+    order.createdBy?.fullName ||
+    order.waiter?.username ||
+    order.createdBy?.username ||
+    'Sin mesero'
+  )
+}
 
-  return 'table-badge'
+function getOrderStatusLabel(status) {
+  const labels = {
+    DRAFT: 'Borrador',
+    SENT: 'Enviada a cocina',
+    IN_PROGRESS: 'En preparación',
+    READY: 'Lista',
+    DELIVERED: 'Entregada',
+    CLOSED: 'Cerrada',
+    CANCELLED: 'Cancelada',
+  }
+
+  return labels[status] || status
+}
+
+function formatTime(date) {
+  return new Intl.DateTimeFormat('es-NI', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
