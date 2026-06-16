@@ -28,15 +28,107 @@ const quickActions = [
   },
   {
     title: 'Administrar',
-    description: 'Productos, usuarios, órdenes y configuración.',
-    to: '/admin',
+    description: 'Usuarios, accesos y módulos administrativos.',
+    to: '/admin/access',
     icon: '⚙️',
     variant: 'dark',
+  },  
+]
+
+const adminMenuSections = [
+  {
+    title: 'Administración',
+    items: [
+      {
+        title: 'Usuarios y Accesos',
+        description: 'Usuarios, roles, permisos y matriz RBAC.',
+        to: '/admin/access',
+        icon: '🔐',
+        ready: true,
+      },
+    ],
+  },
+  {
+    title: 'Restaurante',
+    items: [
+      {
+        title: 'Órdenes',
+        description: 'Tomar, revisar y gestionar órdenes.',
+        to: '/orders',
+        icon: '🍽️',
+        ready: true,
+      },
+      {
+        title: 'Cocina / KDS',
+        description: 'Seguimiento de órdenes en cocina.',
+        to: '/kitchen',
+        icon: '👨‍🍳',
+        ready: true,
+      },
+      {
+        title: 'Mesas',
+        description: 'Gestión de mesas del restaurante.',
+        to: '/admin/restaurant-tables',
+        icon: '🪑',
+        ready: false,
+      },
+      {
+        title: 'Turnos y estaciones',
+        description: 'Turnos, áreas y estaciones de preparación.',
+        to: '/admin/operations',
+        icon: '🧭',
+        ready: false,
+      },
+    ],
+  },
+  {
+    title: 'Menú',
+    items: [
+      {
+        title: 'Menú del restaurante',
+        description: 'Platillos, categorías y disponibilidad.',
+        to: '/admin/menu',
+        icon: '📋',
+        ready: false,
+      },
+    ],
+  },
+  {
+    title: 'Hospedaje',
+    items: [
+      {
+        title: 'Hospedaje',
+        description: 'Cabañas, huéspedes y estadías.',
+        to: '/admin/lodging',
+        icon: '🏡',
+        ready: false,
+      },
+    ],
+  },
+  {
+    title: 'Facturación',
+    items: [
+      {
+        title: 'Facturación',
+        description: 'Facturas, cobros e historial.',
+        to: '/billing',
+        icon: '🧾',
+        ready: true,
+      },
+      {
+        title: 'Administrar facturas',
+        description: 'CRUD completo de facturas.',
+        to: '/admin/invoices',
+        icon: '📑',
+        ready: false,
+      },
+    ],
   },
 ]
 
 export default function DashboardPage() {
   const { user, logout } = useAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const [dashboardData, setDashboardData] = useState(null)
   const [loadingDashboard, setLoadingDashboard] = useState(true)
@@ -119,15 +211,90 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="dashboard-hero-actions">
-          <Link to="/orders" className="btn dashboard-main-button">
-            Nueva orden
-          </Link>
+            <div className="dashboard-hero-actions">
+      <div className="dashboard-menu-wrapper">
+        <button
+          type="button"
+          className="btn dashboard-menu-button"
+          onClick={() => setMenuOpen((current) => !current)}
+          aria-expanded={menuOpen}
+          aria-controls="dashboard-admin-menu"
+        >
+          <span className="dashboard-menu-icon">☰</span>
+          Menú
+        </button>
 
-          <button type="button" className="btn dashboard-logout" onClick={logout}>
-            Cerrar sesión
-          </button>
-        </div>
+        {menuOpen && (
+          <div className="dashboard-menu-panel" id="dashboard-admin-menu">
+            <div className="dashboard-menu-header">
+              <div>
+                <strong>Módulos del sistema</strong>
+                <p>Accede a las áreas principales.</p>
+              </div>
+
+              <button
+                type="button"
+                className="dashboard-menu-close"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Cerrar menú"
+              >                
+              </button>
+            </div>
+
+            <div className="dashboard-menu-sections">
+              {adminMenuSections.map((section) => (
+                <section className="dashboard-menu-section" key={section.title}>
+                  <h3>{section.title}</h3>
+
+                  <div className="dashboard-menu-items">
+                    {section.items.map((item) => (
+                      item.ready ? (
+                        <Link
+                          to={item.to}
+                          className="dashboard-menu-item"
+                          key={item.title}
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          <span>{item.icon}</span>
+
+                          <div>
+                            <strong>{item.title}</strong>
+                            <p>{item.description}</p>
+                          </div>
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          className="dashboard-menu-item dashboard-menu-item-disabled"
+                          key={item.title}
+                          disabled
+                        >
+                          <span>{item.icon}</span>
+
+                          <div>
+                            <strong>{item.title}</strong>
+                            <p>{item.description}</p>
+                            <small>Próximo módulo</small>
+                          </div>
+                        </button>
+                      )
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Link to="/orders" className="btn dashboard-main-button">
+        Nueva orden
+      </Link>
+
+      <button type="button" className="btn dashboard-logout" onClick={logout}>
+        Cerrar sesión
+      </button>
+    </div>
       </section>
 
       {dashboardError && (

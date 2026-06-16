@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 
 import LoginPage from '../pages/LoginPage'
 import DashboardPage from '../pages/DashboardPage'
+import AdminAccessPage from '../pages/AdminAccessPage'
 import UnauthorizedPage from '../pages/UnauthorizedPage'
 import ProtectedRoute from '../auth/ProtectedRoute'
 
@@ -16,6 +17,17 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="/admin" element={<Navigate to="/admin/access" replace />} />
+
+        <Route
+          path="/admin/access"
+          element={
+            <ProtectedRoute>
+              <AdminAccessPage />
             </ProtectedRoute>
           }
         />
