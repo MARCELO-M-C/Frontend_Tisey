@@ -89,7 +89,7 @@ const adminMenuSections = [
         description: 'Platillos, categorías y disponibilidad.',
         to: '/admin/menu',
         icon: '📋',
-        ready: false,
+        ready: true,
       },
     ],
   },
