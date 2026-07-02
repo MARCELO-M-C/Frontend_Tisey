@@ -4,6 +4,7 @@ import LoginPage from '../pages/LoginPage'
 import DashboardPage from '../pages/DashboardPage'
 import AdminAccessPage from '../pages/AdminAccessPage'
 import UnauthorizedPage from '../pages/UnauthorizedPage'
+import AdminRestaurantTablesPage from '../pages/AdminRestaurantTablesPage'
 import ProtectedRoute from '../auth/ProtectedRoute'
 
 export default function AppRoutes() {
@@ -28,6 +29,15 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <AdminAccessPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/restaurant-tables"
+          element={
+            <ProtectedRoute>
+              <AdminRestaurantTablesPage />
             </ProtectedRoute>
           }
         />

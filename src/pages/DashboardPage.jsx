@@ -70,7 +70,7 @@ const adminMenuSections = [
         description: 'Gestión de mesas del restaurante.',
         to: '/admin/restaurant-tables',
         icon: '🪑',
-        ready: false,
+        ready: true,
       },
       {
         title: 'Turnos y estaciones',
@@ -237,7 +237,8 @@ export default function DashboardPage() {
                 className="dashboard-menu-close"
                 onClick={() => setMenuOpen(false)}
                 aria-label="Cerrar menú"
-              >                
+              >
+                ×
               </button>
             </div>
 
