@@ -101,7 +101,7 @@ const adminMenuSections = [
         description: 'Cabañas, huéspedes y estadías.',
         to: '/admin/lodging',
         icon: '🏡',
-        ready: false,
+        ready: true,
       },
     ],
   },

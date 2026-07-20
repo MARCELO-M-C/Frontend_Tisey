@@ -6,6 +6,7 @@ import AdminAccessPage from '../pages/AdminAccessPage'
 import UnauthorizedPage from '../pages/UnauthorizedPage'
 import AdminRestaurantTablesPage from '../pages/AdminRestaurantTablesPage'
 import AdminOperationsPage from '../pages/AdminOperationsPage'
+import AdminLodgingPage from '../pages/AdminLodgingPage'
 import AdminMenuPage from '../pages/AdminMenuPage'
 import ProtectedRoute from '../auth/ProtectedRoute'
 
@@ -58,6 +59,15 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <AdminOperationsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/lodging"
+          element={
+            <ProtectedRoute>
+              <AdminLodgingPage />
             </ProtectedRoute>
           }
         />

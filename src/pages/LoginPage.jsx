@@ -57,13 +57,14 @@ export default function LoginPage() {
           </div>
 
           <h1>EcoPosada Tisey</h1>
-          <p>Sistema de gestión y restaurante</p>
+          <p>Sistema de gestión de hospedaje y restaurante</p>
         </div>
 
         <div className="login-content">
           <h2>Iniciar sesión</h2>
           <p className="login-subtitle">
             Ingresa tus credenciales para continuar.
+            Si no tienes acceso, contacta al administrador del sistema a tu jefe directo.
           </p>
 
           {error && (
