@@ -8,7 +8,19 @@ import AdminRestaurantTablesPage from '../pages/AdminRestaurantTablesPage'
 import AdminOperationsPage from '../pages/AdminOperationsPage'
 import AdminLodgingPage from '../pages/AdminLodgingPage'
 import AdminMenuPage from '../pages/AdminMenuPage'
+import AdminOrdersPage from '../pages/AdminOrdersPage'
+import BillingPage from '../pages/BillingPage'
+import RoleHomeRedirect from '../auth/RoleHomeRedirect'
 import ProtectedRoute from '../auth/ProtectedRoute'
+
+const ADMIN_ROLES = ['ADMIN', 'ADMINISTRADOR']
+
+const BILLING_ROLES = [
+  'ADMIN',
+  'ADMINISTRADOR',
+  'CAJA',
+  'CASHIER',
+]
 
 export default function AppRoutes() {
   return (
@@ -19,7 +31,7 @@ export default function AppRoutes() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <DashboardPage />
             </ProtectedRoute>
           }
@@ -30,7 +42,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/access"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={BILLING_ROLES}>
               <AdminAccessPage />
             </ProtectedRoute>
           }
@@ -39,7 +51,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/restaurant-tables"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={BILLING_ROLES}>
               <AdminRestaurantTablesPage />
             </ProtectedRoute>
           }
@@ -48,7 +60,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/menu"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={BILLING_ROLES}>
               <AdminMenuPage />
             </ProtectedRoute>
           }
@@ -57,7 +69,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/operations"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={BILLING_ROLES}>
               <AdminOperationsPage />
             </ProtectedRoute>
           }
@@ -66,16 +78,34 @@ export default function AppRoutes() {
         <Route
           path="/admin/lodging"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={BILLING_ROLES}>
               <AdminLodgingPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/orders"
+          element={
+            <ProtectedRoute allowedRoles={BILLING_ROLES}>
+              <AdminOrdersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/billing"
+          element={
+            <ProtectedRoute allowedRoles={BILLING_ROLES}>
+              <BillingPage />
             </ProtectedRoute>
           }
         />
 
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<RoleHomeRedirect />} />
+        <Route path="*" element={<RoleHomeRedirect />} />
       </Routes>
     </BrowserRouter>
   )

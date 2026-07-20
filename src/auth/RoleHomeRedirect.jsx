@@ -1,11 +1,8 @@
 import { Navigate } from 'react-router'
 import { useAuth } from './AuthContext'
-import { hasRole } from './authHelpers'
+import { getDefaultRouteForUser } from './authHelpers'
 
-export default function ProtectedRoute({
-  children,
-  allowedRoles = [],
-}) {
+export default function RoleHomeRedirect() {
   const { user, isAuthenticated, loadingSession } = useAuth()
 
   if (loadingSession) {
@@ -16,9 +13,5 @@ export default function ProtectedRoute({
     return <Navigate to="/login" replace />
   }
 
-  if (allowedRoles.length > 0 && !hasRole(user, allowedRoles)) {
-    return <Navigate to="/unauthorized" replace />
-  }
-
-  return children
+  return <Navigate to={getDefaultRouteForUser(user)} replace />
 }

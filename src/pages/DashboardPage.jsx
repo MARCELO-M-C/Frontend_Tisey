@@ -54,7 +54,7 @@ const adminMenuSections = [
       {
         title: 'Órdenes',
         description: 'Tomar, revisar y gestionar órdenes.',
-        to: '/orders',
+        to: '/admin/orders',
         icon: '🍽️',
         ready: true,
       },
@@ -114,14 +114,7 @@ const adminMenuSections = [
         to: '/billing',
         icon: '🧾',
         ready: true,
-      },
-      {
-        title: 'Administrar facturas',
-        description: 'CRUD completo de facturas.',
-        to: '/admin/invoices',
-        icon: '📑',
-        ready: false,
-      },
+      }      
     ],
   },
 ]
@@ -288,7 +281,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <Link to="/orders" className="btn dashboard-main-button">
+      <Link to="/admin/orders" className="btn dashboard-main-button">
         Nueva orden
       </Link>
 
@@ -396,7 +389,7 @@ export default function DashboardPage() {
                 <p>Resumen de órdenes realizadas hoy.</p>
               </div>
 
-              <Link to="/orders" className="dashboard-small-link">
+              <Link to="/admin/orders" className="dashboard-small-link">
                 Ver órdenes
               </Link>
             </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
+import { getDefaultRouteForUser } from '../auth/authHelpers'
 import './LoginPage.css'
 
 export default function LoginPage() {
@@ -31,8 +32,12 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await login(form)
-      navigate('/dashboard', { replace: true })
+      const authenticatedUser = await login(form)
+
+      navigate(
+        getDefaultRouteForUser(authenticatedUser),
+        { replace: true },
+      )
     } catch (error) {
       const message =
         error?.response?.data?.message ||
