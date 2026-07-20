@@ -77,7 +77,7 @@ const adminMenuSections = [
         description: 'Turnos, áreas y estaciones de preparación.',
         to: '/admin/operations',
         icon: '🧭',
-        ready: false,
+        ready: true,
       },
     ],
   },
