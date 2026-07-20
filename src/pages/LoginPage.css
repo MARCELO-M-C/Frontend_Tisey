@@ -82,6 +82,13 @@
   font-size: 0.95rem;
 }
 
+.login-help-text {
+  margin-top: 0.35rem !important;
+  font-style: italic;
+  color: #748079;
+  font-size: 0.9rem;
+}
+
 .form-label {
   color: #34483b;
   font-weight: 600;

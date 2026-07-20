@@ -62,10 +62,13 @@ export default function LoginPage() {
 
         <div className="login-content">
           <h2>Iniciar sesión</h2>
-          <p className="login-subtitle">
-            Ingresa tus credenciales para continuar.
-            Si no tienes acceso, contacta al administrador del sistema a tu jefe directo.
+          <div className="login-subtitle">
+          <p>Ingresa tus credenciales para continuar.</p>
+
+          <p className="login-help-text">
+            Si no tienes acceso, contacta al administrador del sistema o pregúntale a tu jefe directo.
           </p>
+        </div>
 
           {error && (
             <div className="alert alert-danger py-2" role="alert">
