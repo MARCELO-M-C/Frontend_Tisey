@@ -1,5 +1,4 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
-
 import LoginPage from '../pages/LoginPage'
 import DashboardPage from '../pages/DashboardPage'
 import AdminAccessPage from '../pages/AdminAccessPage'
@@ -13,12 +12,17 @@ import BillingPage from '../pages/BillingPage'
 import RoleHomeRedirect from '../auth/RoleHomeRedirect'
 import ProtectedRoute from '../auth/ProtectedRoute'
 
-const ADMIN_ROLES = ['ADMIN', 'ADMINISTRADOR']
-
-const BILLING_ROLES = [
+const ADMIN_ROLES = [
   'ADMIN',
   'ADMINISTRADOR',
+  'ADMINISTRATOR',
+]
+
+const BILLING_ROLES = [
+  ...ADMIN_ROLES,
   'CAJA',
+  'CAJERO',
+  'CAJERA',
   'CASHIER',
 ]
 
@@ -26,7 +30,10 @@ export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/login"
+          element={<LoginPage />}
+        />
 
         <Route
           path="/dashboard"
@@ -37,12 +44,22 @@ export default function AppRoutes() {
           }
         />
 
-        <Route path="/admin" element={<Navigate to="/admin/access" replace />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+              <Navigate
+                to="/admin/access"
+                replace
+              />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/admin/access"
           element={
-            <ProtectedRoute allowedRoles={BILLING_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <AdminAccessPage />
             </ProtectedRoute>
           }
@@ -51,7 +68,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/restaurant-tables"
           element={
-            <ProtectedRoute allowedRoles={BILLING_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <AdminRestaurantTablesPage />
             </ProtectedRoute>
           }
@@ -60,7 +77,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/menu"
           element={
-            <ProtectedRoute allowedRoles={BILLING_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <AdminMenuPage />
             </ProtectedRoute>
           }
@@ -69,7 +86,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/operations"
           element={
-            <ProtectedRoute allowedRoles={BILLING_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <AdminOperationsPage />
             </ProtectedRoute>
           }
@@ -78,7 +95,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/lodging"
           element={
-            <ProtectedRoute allowedRoles={BILLING_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <AdminLodgingPage />
             </ProtectedRoute>
           }
@@ -87,7 +104,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/orders"
           element={
-            <ProtectedRoute allowedRoles={BILLING_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <AdminOrdersPage />
             </ProtectedRoute>
           }
@@ -102,10 +119,20 @@ export default function AppRoutes() {
           }
         />
 
-        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+        <Route
+          path="/unauthorized"
+          element={<UnauthorizedPage />}
+        />
 
-        <Route path="/" element={<RoleHomeRedirect />} />
-        <Route path="*" element={<RoleHomeRedirect />} />
+        <Route
+          path="/"
+          element={<RoleHomeRedirect />}
+        />
+
+        <Route
+          path="*"
+          element={<RoleHomeRedirect />}
+        />
       </Routes>
     </BrowserRouter>
   )

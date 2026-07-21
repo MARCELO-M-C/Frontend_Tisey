@@ -34,10 +34,12 @@ export default function LoginPage() {
     try {
       const authenticatedUser = await login(form)
 
-      navigate(
-        getDefaultRouteForUser(authenticatedUser),
-        { replace: true },
-      )
+      const destination =
+        getDefaultRouteForUser(authenticatedUser)
+
+      navigate(destination, {
+        replace: true,
+      })
     } catch (error) {
       const message =
         error?.response?.data?.message ||

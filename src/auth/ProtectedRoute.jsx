@@ -8,6 +8,9 @@ export default function ProtectedRoute({
 }) {
   const { user, isAuthenticated, loadingSession } = useAuth()
 
+  console.log('Usuario:', user)
+  console.log('Roles permitidos:', allowedRoles)
+
   if (loadingSession) {
     return <div className="container py-4">Cargando sesión...</div>
   }

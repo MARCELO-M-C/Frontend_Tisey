@@ -1,4 +1,4 @@
-function normalizeRoleName(value) {
+function normalizeValue(value) {
   return String(value ?? '')
     .trim()
     .toUpperCase()
@@ -6,56 +6,138 @@ function normalizeRoleName(value) {
     .replace(/[\u0300-\u036f]/g, '')
 }
 
+function extractRoleValue(role) {
+  if (!role) return ''
+
+  if (typeof role === 'string') {
+    return role
+  }
+
+  return (
+    role.code ||
+    role.name ||
+    role.roleCode ||
+    role.roleName ||
+    role.role?.code ||
+    role.role?.name ||
+    ''
+  )
+}
+
 export function getRoleNames(user) {
-  return (user?.roles ?? [])
-    .map((role) =>
-      normalizeRoleName(
-        typeof role === 'string'
-          ? role
-          : role?.name ?? role?.code ?? role?.role?.name ?? role?.role?.code,
-      ),
-    )
-    .filter(Boolean)
+  const possibleRoles = [
+    ...(Array.isArray(user?.roles) ? user.roles : []),
+    ...(Array.isArray(user?.roleCodes) ? user.roleCodes : []),
+    ...(Array.isArray(user?.userRoles) ? user.userRoles : []),
+  ]
+
+  if (user?.role) {
+    possibleRoles.push(user.role)
+  }
+
+  if (user?.roleCode) {
+    possibleRoles.push(user.roleCode)
+  }
+
+  if (user?.roleName) {
+    possibleRoles.push(user.roleName)
+  }
+
+  return [
+    ...new Set(
+      possibleRoles
+        .map(extractRoleValue)
+        .map(normalizeValue)
+        .filter(Boolean),
+    ),
+  ]
 }
 
 export function getPermissionCodes(user) {
-  return (user?.permissions ?? [])
-    .map((permission) =>
-      String(
-        typeof permission === 'string'
-          ? permission
-          : permission?.code ?? permission?.name ?? '',
-      )
-        .trim()
-        .toUpperCase(),
-    )
-    .filter(Boolean)
+  const possiblePermissions = [
+    ...(Array.isArray(user?.permissions)
+      ? user.permissions
+      : []),
+
+    ...(Array.isArray(user?.permissionCodes)
+      ? user.permissionCodes
+      : []),
+  ]
+
+  return [
+    ...new Set(
+      possiblePermissions
+        .map((permission) => {
+          if (typeof permission === 'string') {
+            return normalizeValue(permission)
+          }
+
+          return normalizeValue(
+            permission?.code ||
+              permission?.name ||
+              permission?.permission?.code ||
+              permission?.permission?.name,
+          )
+        })
+        .filter(Boolean),
+    ),
+  ]
 }
 
 export function hasRole(user, allowedRoles = []) {
-  const roleNames = new Set(getRoleNames(user))
+  if (!Array.isArray(allowedRoles) || allowedRoles.length === 0) {
+    return true
+  }
 
-  return allowedRoles.some((role) =>
-    roleNames.has(normalizeRoleName(role)),
+  const currentRoles = new Set(getRoleNames(user))
+
+  return allowedRoles.some((allowedRole) =>
+    currentRoles.has(normalizeValue(allowedRole)),
   )
 }
 
 export function hasPermission(user, requiredPermissions = []) {
-  const permissionCodes = new Set(getPermissionCodes(user))
+  if (
+    !Array.isArray(requiredPermissions) ||
+    requiredPermissions.length === 0
+  ) {
+    return true
+  }
+
+  const currentPermissions = new Set(
+    getPermissionCodes(user),
+  )
 
   return requiredPermissions.some((permission) =>
-    permissionCodes.has(String(permission).trim().toUpperCase()),
+    currentPermissions.has(normalizeValue(permission)),
   )
 }
 
+export function isAdminUser(user) {
+  return hasRole(user, [
+    'ADMIN',
+    'ADMINISTRADOR',
+    'ADMINISTRATOR',
+  ])
+}
+
+export function isCashierUser(user) {
+  return hasRole(user, [
+    'CAJA',
+    'CAJERO',
+    'CAJERA',
+    'CASHIER',
+  ])
+}
+
 export function getDefaultRouteForUser(user) {
-  if (hasRole(user, ['ADMIN', 'ADMINISTRADOR'])) {
+  if (isAdminUser(user)) {
     return '/dashboard'
   }
 
-  if (hasRole(user, ['CAJA', 'CASHIER'])) {
+  if (isCashierUser(user)) {
     return '/billing'
   }
 
-  return '/dashboard'
+  return '/unauthorized'
 }

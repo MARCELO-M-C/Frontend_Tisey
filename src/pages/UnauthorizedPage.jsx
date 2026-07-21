@@ -7,9 +7,9 @@ export default function UnauthorizedPage() {
         No tienes permisos para acceder a esta sección.
       </div>
 
-      <Link to="/dashboard" className="btn btn-primary">
-        Volver al dashboard
-      </Link>
+      <Link to="/login" className="btn btn-primary">
+        Volver al login
+      </Link>      
     </main>
-  )
+  )  
 }
