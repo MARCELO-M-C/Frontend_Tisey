@@ -9,6 +9,7 @@ import AdminLodgingPage from '../pages/AdminLodgingPage'
 import AdminMenuPage from '../pages/AdminMenuPage'
 import AdminOrdersPage from '../pages/AdminOrdersPage'
 import BillingPage from '../pages/BillingPage'
+import KitchenPage from '../pages/KitchenPage'
 import RoleHomeRedirect from '../auth/RoleHomeRedirect'
 import ProtectedRoute from '../auth/ProtectedRoute'
 
@@ -24,6 +25,14 @@ const BILLING_ROLES = [
   'CAJERO',
   'CAJERA',
   'CASHIER',
+]
+
+const KITCHEN_ROLES = [
+  ...ADMIN_ROLES,
+  'COCINA',
+  'COCINERO',
+  'COCINERA',
+  'KITCHEN',
 ]
 
 export default function AppRoutes() {
@@ -115,6 +124,15 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute allowedRoles={BILLING_ROLES}>
               <BillingPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/kitchen"
+          element={
+            <ProtectedRoute allowedRoles={KITCHEN_ROLES}>
+              <KitchenPage />
             </ProtectedRoute>
           }
         />

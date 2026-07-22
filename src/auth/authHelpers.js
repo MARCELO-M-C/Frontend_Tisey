@@ -31,17 +31,9 @@ export function getRoleNames(user) {
     ...(Array.isArray(user?.userRoles) ? user.userRoles : []),
   ]
 
-  if (user?.role) {
-    possibleRoles.push(user.role)
-  }
-
-  if (user?.roleCode) {
-    possibleRoles.push(user.roleCode)
-  }
-
-  if (user?.roleName) {
-    possibleRoles.push(user.roleName)
-  }
+  if (user?.role) possibleRoles.push(user.role)
+  if (user?.roleCode) possibleRoles.push(user.roleCode)
+  if (user?.roleName) possibleRoles.push(user.roleName)
 
   return [
     ...new Set(
@@ -58,7 +50,6 @@ export function getPermissionCodes(user) {
     ...(Array.isArray(user?.permissions)
       ? user.permissions
       : []),
-
     ...(Array.isArray(user?.permissionCodes)
       ? user.permissionCodes
       : []),
@@ -130,6 +121,15 @@ export function isCashierUser(user) {
   ])
 }
 
+export function isKitchenUser(user) {
+  return hasRole(user, [
+    'COCINA',
+    'COCINERO',
+    'COCINERA',
+    'KITCHEN',
+  ])
+}
+
 export function getDefaultRouteForUser(user) {
   if (isAdminUser(user)) {
     return '/dashboard'
@@ -137,6 +137,10 @@ export function getDefaultRouteForUser(user) {
 
   if (isCashierUser(user)) {
     return '/billing'
+  }
+
+  if (isKitchenUser(user)) {
+    return '/kitchen'
   }
 
   return '/unauthorized'
