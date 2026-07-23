@@ -10,6 +10,7 @@ import AdminMenuPage from '../pages/AdminMenuPage'
 import AdminOrdersPage from '../pages/AdminOrdersPage'
 import BillingPage from '../pages/BillingPage'
 import KitchenPage from '../pages/KitchenPage'
+import WaiterOrdersPage from '../pages/WaiterOrdersPage'
 import RoleHomeRedirect from '../auth/RoleHomeRedirect'
 import ProtectedRoute from '../auth/ProtectedRoute'
 
@@ -35,14 +36,18 @@ const KITCHEN_ROLES = [
   'KITCHEN',
 ]
 
+const WAITER_ROLES = [
+  'MESERO',
+  'MESERA',
+  'WAITER',
+  'SERVER',
+]
+
 export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route
-          path="/login"
-          element={<LoginPage />}
-        />
+        <Route path="/login" element={<LoginPage />} />
 
         <Route
           path="/dashboard"
@@ -57,10 +62,7 @@ export default function AppRoutes() {
           path="/admin"
           element={
             <ProtectedRoute allowedRoles={ADMIN_ROLES}>
-              <Navigate
-                to="/admin/access"
-                replace
-              />
+              <Navigate to="/admin/access" replace />
             </ProtectedRoute>
           }
         />
@@ -120,6 +122,15 @@ export default function AppRoutes() {
         />
 
         <Route
+          path="/orders"
+          element={
+            <ProtectedRoute allowedRoles={WAITER_ROLES}>
+              <WaiterOrdersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/billing"
           element={
             <ProtectedRoute allowedRoles={BILLING_ROLES}>
@@ -142,15 +153,8 @@ export default function AppRoutes() {
           element={<UnauthorizedPage />}
         />
 
-        <Route
-          path="/"
-          element={<RoleHomeRedirect />}
-        />
-
-        <Route
-          path="*"
-          element={<RoleHomeRedirect />}
-        />
+        <Route path="/" element={<RoleHomeRedirect />} />
+        <Route path="*" element={<RoleHomeRedirect />} />
       </Routes>
     </BrowserRouter>
   )

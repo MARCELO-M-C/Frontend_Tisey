@@ -130,6 +130,15 @@ export function isKitchenUser(user) {
   ])
 }
 
+export function isWaiterUser(user) {
+  return hasRole(user, [
+    'MESERO',
+    'MESERA',
+    'WAITER',
+    'SERVER',
+  ])
+}
+
 export function getDefaultRouteForUser(user) {
   if (isAdminUser(user)) {
     return '/dashboard'
@@ -141,6 +150,10 @@ export function getDefaultRouteForUser(user) {
 
   if (isKitchenUser(user)) {
     return '/kitchen'
+  }
+
+  if (isWaiterUser(user)) {
+    return '/orders'
   }
 
   return '/unauthorized'
