@@ -711,6 +711,172 @@
   line-height: 1.4;
 }
 
+.access-password-section {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.access-password-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 32px;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.85rem;
+  border: 1px solid #dbe6de;
+  border-radius: 17px;
+  color: #2d4938;
+  background: #fafcfb;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.access-password-option:hover:not(:disabled) {
+  border-color: #a9cbb4;
+  background: #f2f8f4;
+  transform: translateY(-1px);
+}
+
+.access-password-option:focus-visible {
+  outline: 3px solid rgba(72, 145, 94, 0.22);
+  outline-offset: 2px;
+}
+
+.access-password-option.is-active {
+  border-color: #83b894;
+  background: #eef8f1;
+  box-shadow: inset 0 0 0 1px rgba(67, 129, 86, 0.08);
+}
+
+.access-password-option-icon,
+.access-password-option-state {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.access-password-option-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: #2f6742;
+  background: #e3f1e7;
+}
+
+.access-password-option-icon svg,
+.access-password-visibility svg {
+  width: 22px;
+  height: 22px;
+}
+
+.access-password-option-copy {
+  min-width: 0;
+}
+
+.access-password-option-copy strong,
+.access-password-option-copy small {
+  display: block;
+}
+
+.access-password-option-copy strong {
+  color: #294535;
+  font-size: 0.9rem;
+  font-weight: 870;
+}
+
+.access-password-option-copy small {
+  margin-top: 0.2rem;
+  color: #718078;
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.access-password-option-state {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #c9d9ce;
+  border-radius: 10px;
+  color: #557061;
+  background: #ffffff;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.access-password-option.is-active .access-password-option-state {
+  border-color: #78ae89;
+  color: #ffffff;
+  background: #3f7c53;
+}
+
+.access-password-field {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem;
+  border: 1px solid #dce7df;
+  border-radius: 17px;
+  background: #ffffff;
+  animation: access-password-editor-in 160ms ease-out;
+}
+
+.access-password-input {
+  position: relative;
+}
+
+.access-password-input input {
+  width: 100%;
+  padding-right: 3.25rem;
+}
+
+.access-password-visibility {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: #496555;
+  background: transparent;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    color 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.access-password-visibility:hover {
+  border-color: #c7dbcd;
+  color: #245f38;
+  background: #edf6ef;
+}
+
+.access-password-visibility:focus-visible {
+  outline: 3px solid rgba(72, 145, 94, 0.22);
+  outline-offset: 1px;
+}
+
+@keyframes access-password-editor-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .access-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -972,6 +1138,24 @@
     justify-content: flex-start;
     padding-top: 0.7rem;
     border-top: 1px dashed #dbe5de;
+  }
+}
+
+@media (max-width: 560px) {
+  .access-password-option {
+    grid-template-columns: 40px minmax(0, 1fr) 28px;
+    gap: 0.65rem;
+    padding: 0.75rem;
+  }
+
+  .access-password-option-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .access-password-option-state {
+    width: 28px;
+    height: 28px;
   }
 }
 

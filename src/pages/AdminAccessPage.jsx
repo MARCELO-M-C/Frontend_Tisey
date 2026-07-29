@@ -131,6 +131,8 @@ export default function AdminAccessPage() {
   const [activeModal, setActiveModal] = useState(null)
   const [selectedUser, setSelectedUser] = useState(null)
   const [userForm, setUserForm] = useState(initialUserForm)
+  const [passwordEditorOpen, setPasswordEditorOpen] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const currentUserIsAdmin = isAdminUser(user)
   const currentUserIsManager = isManagerUser(user) && !currentUserIsAdmin
@@ -233,6 +235,8 @@ export default function AdminAccessPage() {
           setActiveModal(null)
           setSelectedUser(null)
           setUserForm(initialUserForm)
+          setPasswordEditorOpen(false)
+          setShowPassword(false)
           setModalError('')
         }
       }
@@ -256,6 +260,8 @@ export default function AdminAccessPage() {
 
   function openCreateModal() {
     clearMessages()
+    setPasswordEditorOpen(false)
+    setShowPassword(false)
     setSelectedUser(null)
     setUserForm({
       ...initialUserForm,
@@ -266,12 +272,16 @@ export default function AdminAccessPage() {
 
   function openDetailModal(item) {
     clearMessages()
+    setPasswordEditorOpen(false)
+    setShowPassword(false)
     setSelectedUser(item)
     setActiveModal('detail')
   }
 
   function openEditModal(item) {
     clearMessages()
+    setPasswordEditorOpen(false)
+    setShowPassword(false)
     setSelectedUser(item)
     setUserForm({
       username: item.username ?? '',
@@ -286,6 +296,8 @@ export default function AdminAccessPage() {
 
   function openAccessModal(item) {
     clearMessages()
+    setPasswordEditorOpen(false)
+    setShowPassword(false)
     setSelectedUser(item)
     setUserForm({
       username: item.username ?? '',
@@ -300,6 +312,8 @@ export default function AdminAccessPage() {
 
   function openStatusModal(item) {
     clearMessages()
+    setPasswordEditorOpen(false)
+    setShowPassword(false)
     setSelectedUser(item)
     setActiveModal('status')
   }
@@ -308,7 +322,26 @@ export default function AdminAccessPage() {
     setActiveModal(null)
     setSelectedUser(null)
     setUserForm(initialUserForm)
+    setPasswordEditorOpen(false)
+    setShowPassword(false)
     setModalError('')
+  }
+
+  function handlePasswordEditorToggle() {
+    setModalError('')
+    setPasswordEditorOpen((current) => {
+      const nextValue = !current
+
+      if (!nextValue) {
+        setUserForm((currentForm) => ({
+          ...currentForm,
+          password: '',
+        }))
+        setShowPassword(false)
+      }
+
+      return nextValue
+    })
   }
 
   function handleUserFieldChange(event) {
@@ -396,13 +429,18 @@ export default function AdminAccessPage() {
 
     if (!selectedUser) return
 
+    if (passwordEditorOpen && !userForm.password.trim()) {
+      setModalError('Escribe la nueva contraseña antes de guardar.')
+      return
+    }
+
     const payload = {
       username: userForm.username.trim(),
       firstName: userForm.firstName.trim(),
       lastName: userForm.lastName.trim(),
     }
 
-    if (userForm.password.trim()) {
+    if (passwordEditorOpen) {
       payload.password = userForm.password
     }
 
@@ -860,19 +898,61 @@ export default function AdminAccessPage() {
                 />
               </label>
             </div>
-            <label>
-              <span>Nueva contraseña</span>
-              <input
-                type="password"
-                name="password"
-                value={userForm.password}
-                onChange={handleUserFieldChange}
-                minLength={8}
-                maxLength={72}
-                placeholder="Déjala vacía para conservar la actual"
-              />
-              <small>Solo se actualizará si escribes una nueva contraseña.</small>
-            </label>
+            <section className="access-password-section">
+              <button
+                type="button"
+                className={`access-password-option${
+                  passwordEditorOpen ? ' is-active' : ''
+                }`}
+                onClick={handlePasswordEditorToggle}
+                aria-expanded={passwordEditorOpen}
+                aria-controls="access-password-editor"
+              >
+                <span className="access-password-option-icon" aria-hidden="true">
+                  <KeyIcon />
+                </span>
+                <span className="access-password-option-copy">
+                  <strong>Actualizar contraseña</strong>
+                  <small>Activa esta opción únicamente cuando necesites reemplazarla.</small>
+                </span>
+                <span className="access-password-option-state" aria-hidden="true">
+                  {passwordEditorOpen ? '✓' : '+'}
+                </span>
+              </button>
+
+              {passwordEditorOpen && (
+                <label id="access-password-editor" className="access-password-field">
+                  <span>Nueva contraseña</span>
+                  <div className="access-password-input">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={userForm.password}
+                      onChange={handleUserFieldChange}
+                      minLength={8}
+                      maxLength={72}
+                      placeholder="Escribe la nueva contraseña"
+                      autoComplete="new-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="access-password-visibility"
+                      onClick={() => setShowPassword((current) => !current)}
+                      aria-label={
+                        showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                      }
+                      title={
+                        showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                      }
+                    >
+                      {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                    </button>
+                  </div>
+                  <small>Debe contener entre 8 y 72 caracteres.</small>
+                </label>
+              )}
+            </section>
             <div className="access-modal-actions">
               <button type="button" className="access-cancel-button" onClick={closeModal}>
                 Cancelar
@@ -1276,6 +1356,60 @@ function AccessModal({
         <div className="access-modal-body">{children}</div>
       </section>
     </div>
+  )
+}
+
+function KeyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M15.5 7.5a4.5 4.5 0 1 1-1.32 3.18L21 17.5V21h-3.5v-2.5H15V16h-2.5l-1.18-1.18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="8.5" cy="7.5" r="0.9" fill="currentColor" />
+    </svg>
+  )
+}
+
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle
+        cx="12"
+        cy="12"
+        r="2.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
+function EyeOffIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3 3l18 18M10.6 6.15A9.9 9.9 0 0 1 12 6c6 0 9.5 6 9.5 6a15.5 15.5 0 0 1-2.15 2.85M6.05 6.05C3.72 7.72 2.5 12 2.5 12s3.5 6 9.5 6a9.8 9.8 0 0 0 3.15-.5M9.9 9.9a3 3 0 0 0 4.2 4.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
 
