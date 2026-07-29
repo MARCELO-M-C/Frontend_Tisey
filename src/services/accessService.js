@@ -30,6 +30,13 @@ export async function replaceUserRolesRequest(userId, roleIds) {
   return data
 }
 
+export async function replaceUserPermissionsRequest(userId, permissionIds) {
+  const { data } = await api.put(`/users/${userId}/permissions`, {
+    permissionIds,
+  })
+  return data
+}
+
 export async function getRolesRequest(params = {}) {
   const { data } = await api.get('/roles', { params })
   return data
@@ -37,21 +44,6 @@ export async function getRolesRequest(params = {}) {
 
 export async function getRoleByIdRequest(roleId) {
   const { data } = await api.get(`/roles/${roleId}`)
-  return data
-}
-
-export async function createRoleRequest(payload) {
-  const { data } = await api.post('/roles', payload)
-  return data
-}
-
-export async function updateRoleRequest(roleId, payload) {
-  const { data } = await api.patch(`/roles/${roleId}`, payload)
-  return data
-}
-
-export async function replaceRolePermissionsRequest(roleId, permissionIds) {
-  const { data } = await api.patch(`/roles/${roleId}/permissions`, { permissionIds })
   return data
 }
 

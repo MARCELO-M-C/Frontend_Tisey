@@ -24,6 +24,24 @@ function extractRoleValue(role) {
   )
 }
 
+function extractPermissionValue(permission) {
+  if (!permission) return ''
+
+  if (typeof permission === 'string') {
+    return permission
+  }
+
+  return (
+    permission.code ||
+    permission.name ||
+    permission.permissionCode ||
+    permission.permissionName ||
+    permission.permission?.code ||
+    permission.permission?.name ||
+    ''
+  )
+}
+
 export function getRoleNames(user) {
   const possibleRoles = [
     ...(Array.isArray(user?.roles) ? user.roles : []),
@@ -47,29 +65,16 @@ export function getRoleNames(user) {
 
 export function getPermissionCodes(user) {
   const possiblePermissions = [
-    ...(Array.isArray(user?.permissions)
-      ? user.permissions
-      : []),
-    ...(Array.isArray(user?.permissionCodes)
-      ? user.permissionCodes
-      : []),
+    ...(Array.isArray(user?.permissions) ? user.permissions : []),
+    ...(Array.isArray(user?.permissionCodes) ? user.permissionCodes : []),
+    ...(Array.isArray(user?.userPermissions) ? user.userPermissions : []),
   ]
 
   return [
     ...new Set(
       possiblePermissions
-        .map((permission) => {
-          if (typeof permission === 'string') {
-            return normalizeValue(permission)
-          }
-
-          return normalizeValue(
-            permission?.code ||
-              permission?.name ||
-              permission?.permission?.code ||
-              permission?.permission?.name,
-          )
-        })
+        .map(extractPermissionValue)
+        .map(normalizeValue)
         .filter(Boolean),
     ),
   ]
@@ -87,7 +92,11 @@ export function hasRole(user, allowedRoles = []) {
   )
 }
 
-export function hasPermission(user, requiredPermissions = []) {
+export function hasPermission(
+  user,
+  requiredPermissions = [],
+  { requireAll = false } = {},
+) {
   if (
     !Array.isArray(requiredPermissions) ||
     requiredPermissions.length === 0
@@ -95,52 +104,52 @@ export function hasPermission(user, requiredPermissions = []) {
     return true
   }
 
-  const currentPermissions = new Set(
-    getPermissionCodes(user),
-  )
+  const currentPermissions = new Set(getPermissionCodes(user))
+  const normalizedPermissions = requiredPermissions
+    .map(normalizeValue)
+    .filter(Boolean)
 
-  return requiredPermissions.some((permission) =>
-    currentPermissions.has(normalizeValue(permission)),
+  if (requireAll) {
+    return normalizedPermissions.every((permission) =>
+      currentPermissions.has(permission),
+    )
+  }
+
+  return normalizedPermissions.some((permission) =>
+    currentPermissions.has(permission),
   )
 }
 
 export function isAdminUser(user) {
-  return hasRole(user, [
-    'ADMIN',
-    'ADMINISTRADOR',
-    'ADMINISTRATOR',
-  ])
+  return hasRole(user, ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRATOR'])
+}
+
+export function isManagerUser(user) {
+  return hasRole(user, ['MANAGER', 'GERENTE', 'ENCARGADO'])
 }
 
 export function isCashierUser(user) {
-  return hasRole(user, [
-    'CAJA',
-    'CAJERO',
-    'CAJERA',
-    'CASHIER',
-  ])
+  return hasRole(user, ['CAJA', 'CAJERO', 'CAJERA', 'CASHIER'])
 }
 
 export function isKitchenUser(user) {
-  return hasRole(user, [
-    'COCINA',
-    'COCINERO',
-    'COCINERA',
-    'KITCHEN',
-  ])
+  return hasRole(user, ['COCINA', 'COCINERO', 'COCINERA', 'KITCHEN'])
 }
 
 export function isWaiterUser(user) {
-  return hasRole(user, [
-    'MESERO',
-    'MESERA',
-    'WAITER',
-    'SERVER',
-  ])
+  return hasRole(user, ['MESERO', 'MESERA', 'WAITER', 'SERVER'])
+}
+
+export function canUsePermission(user, permission) {
+  return isAdminUser(user) || hasPermission(user, [permission])
+}
+
+export function canUseAnyPermission(user, permissions = []) {
+  return isAdminUser(user) || hasPermission(user, permissions)
 }
 
 export function getDefaultRouteForUser(user) {
-  if (isAdminUser(user)) {
+  if (isAdminUser(user) || isManagerUser(user)) {
     return '/dashboard'
   }
 

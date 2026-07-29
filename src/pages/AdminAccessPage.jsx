@@ -1,77 +1,160 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import {
-  createRoleRequest,
+  canUsePermission,
+  isAdminUser,
+  isManagerUser,
+} from '../auth/authHelpers'
+import {
   createUserRequest,
   getPermissionsRequest,
   getRolesRequest,
   getUsersRequest,
-  replaceRolePermissionsRequest,
+  replaceUserPermissionsRequest,
   replaceUserRolesRequest,
-  updateRoleRequest,
   updateUserRequest,
   updateUserStatusRequest,
 } from '../services/accessService'
 import './AdminAccessPage.css'
 
-const accessTabs = [
-  { id: 'users', label: 'Usuarios', helper: 'Crear, editar, activar y eliminar usuarios.' },
-  { id: 'roles', label: 'Roles', helper: 'Gestionar roles administrativos.' },
-  { id: 'permissions', label: 'Permisos', helper: 'Lista de permisos.' },
-  { id: 'matrix', label: 'Matriz de roles y permisos', helper: 'Asignar permisos a cada rol.' },
+const OPERATIONAL_ROLE_NAMES = new Set(['MESERO', 'COCINA', 'CAJA'])
+
+const adminMenuSections = [
+  {
+    title: 'Administración',
+    items: [
+      {
+        title: 'Usuarios y Accesos',
+        description: 'Gestiona usuarios, roles y permisos individuales.',
+        to: '/admin/access',
+        icon: '🔐',
+        permission: 'ADMIN_USERS_MANAGE',
+      },
+    ],
+  },
+  {
+    title: 'Restaurante',
+    items: [
+      {
+        title: 'Órdenes',
+        description: 'Toma, revisa y gestiona órdenes.',
+        to: '/admin/orders',
+        icon: '🍽️',
+        permission: 'ADMIN_ORDERS_MANAGE',
+      },
+      {
+        title: 'Cocina / KDS',
+        description: 'Da seguimiento a las órdenes en cocina.',
+        to: '/kitchen',
+        icon: '👨‍🍳',
+        permission: 'ADMIN_KITCHEN_MANAGE',
+      },
+      {
+        title: 'Mesas',
+        description: 'Gestiona las mesas del restaurante.',
+        to: '/admin/restaurant-tables',
+        icon: '🪑',
+        permission: 'ADMIN_TABLES_MANAGE',
+      },
+      {
+        title: 'Turnos y estaciones',
+        description: 'Administra turnos, áreas y estaciones.',
+        to: '/admin/operations',
+        icon: '🧭',
+        permission: 'ADMIN_SHIFTS_&_STATIONS_MANAGE',
+      },
+    ],
+  },
+  {
+    title: 'Menú',
+    items: [
+      {
+        title: 'Menú del restaurante',
+        description: 'Gestiona platillos, categorías y disponibilidad.',
+        to: '/admin/menu',
+        icon: '📋',
+        permission: 'ADMIN_MENU_MANAGE',
+      },
+    ],
+  },
+  {
+    title: 'Hospedaje',
+    items: [
+      {
+        title: 'Hospedaje',
+        description: 'Gestiona cabañas, huéspedes y estadías.',
+        to: '/admin/lodging',
+        icon: '🏡',
+        permission: 'ADMIN_LODGING_MANAGE',
+      },
+    ],
+  },
+  {
+    title: 'Facturación',
+    items: [
+      {
+        title: 'Facturación',
+        description: 'Gestiona facturas, cobros e historial.',
+        to: '/billing',
+        icon: '🧾',
+        permission: 'ADMIN_BILLING_MANAGE',
+      },
+    ],
+  },
 ]
 
 const initialUserForm = {
-  id: '',
   username: '',
   firstName: '',
   lastName: '',
   password: '',
-  roleIds: [],
-}
-
-const initialRoleForm = {
-  id: '',
-  name: '',
+  roleId: '',
   permissionIds: [],
 }
 
 export default function AdminAccessPage() {
   const { user, logout } = useAuth()
-
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState('users')
-
+  const menuRef = useRef(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [users, setUsers] = useState([])
   const [roles, setRoles] = useState([])
   const [permissions, setPermissions] = useState([])
-
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-
+  const [modalError, setModalError] = useState('')
   const [userSearch, setUserSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
-
+  const [activeModal, setActiveModal] = useState(null)
+  const [selectedUser, setSelectedUser] = useState(null)
   const [userForm, setUserForm] = useState(initialUserForm)
-  const [roleForm, setRoleForm] = useState(initialRoleForm)
-  const [matrixRoleId, setMatrixRoleId] = useState('')
-  const [matrixPermissionIds, setMatrixPermissionIds] = useState([])
 
-  useEffect(() => {
-    loadAccessData()
-  }, [])
+  const currentUserIsAdmin = isAdminUser(user)
+  const currentUserIsManager = isManagerUser(user) && !currentUserIsAdmin
 
-  useEffect(() => {
-    if (!matrixRoleId && roles.length > 0) {
-      const firstRole = roles[0]
-      setMatrixRoleId(firstRole.id)
-      setMatrixPermissionIds(getPermissionIds(firstRole))
-    }
-  }, [matrixRoleId, roles])
+  const menuSections = useMemo(
+    () =>
+      adminMenuSections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) =>
+            canUsePermission(user, item.permission),
+          ),
+        }))
+        .filter((section) => section.items.length > 0),
+    [user],
+  )
+
+  const assignableRoles = useMemo(() => {
+    if (currentUserIsAdmin) return roles
+
+    return roles.filter((role) =>
+      OPERATIONAL_ROLE_NAMES.has(normalizeRoleName(role.name)),
+    )
+  }, [currentUserIsAdmin, roles])
 
   const filteredUsers = useMemo(() => {
     const search = userSearch.trim().toLowerCase()
@@ -83,58 +166,149 @@ export default function AdminAccessPage() {
 
       const matchesSearch =
         !search || fullName.includes(search) || username.includes(search)
-
       const matchesStatus =
         statusFilter === 'all' ||
         (statusFilter === 'active' && item.isActive) ||
         (statusFilter === 'inactive' && !item.isActive)
-
-      const matchesRole = roleFilter === 'all' || roleIds.includes(roleFilter)
+      const matchesRole =
+        roleFilter === 'all' || roleIds.includes(String(roleFilter))
 
       return matchesSearch && matchesStatus && matchesRole
     })
   }, [roleFilter, statusFilter, userSearch, users])
 
-  async function loadAccessData() {
-    try {
-      setLoading(true)
-      setError('')
+  const loadAccessData = useCallback(
+    async ({ preserveMessages = false } = {}) => {
+      try {
+        setLoading(true)
+        setError('')
+        if (!preserveMessages) setSuccess('')
 
-      const [usersPayload, rolesPayload, permissionsPayload] = await Promise.all([
-        getUsersRequest(),
-        getRolesRequest(),
-        getPermissionsRequest(),
-      ])
+        const requests = [getUsersRequest(), getRolesRequest()]
 
-      const nextUsers = normalizeList(usersPayload, 'users')
-      const nextRoles = normalizeList(rolesPayload, 'roles')
-      const nextPermissions = normalizeList(permissionsPayload, 'permissions')
+        if (currentUserIsAdmin) {
+          requests.push(getPermissionsRequest())
+        }
 
-      setUsers(nextUsers)
-      setRoles(nextRoles)
-      setPermissions(nextPermissions)
+        const [usersPayload, rolesPayload, permissionsPayload = []] =
+          await Promise.all(requests)
 
-      if (nextRoles.length > 0) {
-        const selectedRole = nextRoles[0]
-        setMatrixRoleId(selectedRole.id)
-        setMatrixPermissionIds(getPermissionIds(selectedRole))
+        setUsers(normalizeList(usersPayload, 'users'))
+        setRoles(normalizeList(rolesPayload, 'roles'))
+        setPermissions(
+          currentUserIsAdmin
+            ? normalizeList(permissionsPayload, 'permissions')
+            : [],
+        )
+      } catch (requestError) {
+        setError(
+          getErrorMessage(
+            requestError,
+            'No se pudo cargar la información de Usuarios y Accesos.',
+          ),
+        )
+      } finally {
+        setLoading(false)
       }
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'No se pudo cargar Usuarios y Accesos.'))
-    } finally {
-      setLoading(false)
+    },
+    [currentUserIsAdmin],
+  )
+
+  useEffect(() => {
+    loadAccessData()
+  }, [loadAccessData])
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false)
+      }
     }
-  }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setMenuOpen(false)
+
+        if (activeModal && !saving) {
+          setActiveModal(null)
+          setSelectedUser(null)
+          setUserForm(initialUserForm)
+          setModalError('')
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [activeModal, saving])
+
 
   function clearMessages() {
     setError('')
     setSuccess('')
+    setModalError('')
   }
 
-  function handleTabChange(tabId) {
+  function openCreateModal() {
     clearMessages()
-    setActiveTab(tabId)
-    setDrawerOpen(false)
+    setSelectedUser(null)
+    setUserForm({
+      ...initialUserForm,
+      roleId: assignableRoles[0]?.id ?? '',
+    })
+    setActiveModal('create')
+  }
+
+  function openDetailModal(item) {
+    clearMessages()
+    setSelectedUser(item)
+    setActiveModal('detail')
+  }
+
+  function openEditModal(item) {
+    clearMessages()
+    setSelectedUser(item)
+    setUserForm({
+      username: item.username ?? '',
+      firstName: item.firstName ?? '',
+      lastName: item.lastName ?? '',
+      password: '',
+      roleId: getRoleIds(item)[0] ?? '',
+      permissionIds: getPermissionIds(item),
+    })
+    setActiveModal('edit')
+  }
+
+  function openAccessModal(item) {
+    clearMessages()
+    setSelectedUser(item)
+    setUserForm({
+      username: item.username ?? '',
+      firstName: item.firstName ?? '',
+      lastName: item.lastName ?? '',
+      password: '',
+      roleId: getRoleIds(item)[0] ?? '',
+      permissionIds: getPermissionIds(item),
+    })
+    setActiveModal('access')
+  }
+
+  function openStatusModal(item) {
+    clearMessages()
+    setSelectedUser(item)
+    setActiveModal('status')
+  }
+
+  function closeModal() {
+    setActiveModal(null)
+    setSelectedUser(null)
+    setUserForm(initialUserForm)
+    setModalError('')
   }
 
   function handleUserFieldChange(event) {
@@ -142,197 +316,196 @@ export default function AdminAccessPage() {
     setUserForm((current) => ({ ...current, [name]: value }))
   }
 
-  function handleUserRoleToggle(roleId) {
+  function handleRoleChange(event) {
+    const roleId = event.target.value
+    const selectedRole = roles.find((role) => role.id === roleId)
+    const roleName = normalizeRoleName(selectedRole?.name)
+
     setUserForm((current) => ({
       ...current,
-      roleIds: toggleId(current.roleIds, roleId),
+      roleId,
+      permissionIds:
+        roleName === 'MANAGER' ? current.permissionIds : [],
     }))
   }
 
-  function startCreateUser() {
-    clearMessages()
-    setUserForm(initialUserForm)
-  }
-
-  function startEditUser(selectedUser) {
-    clearMessages()
-    setUserForm({
-      id: selectedUser.id,
-      username: selectedUser.username ?? '',
-      firstName: selectedUser.firstName ?? '',
-      lastName: selectedUser.lastName ?? '',
-      password: '',
-      roleIds: getRoleIds(selectedUser),
-    })
-    setActiveTab('users')
-  }
-
-  async function handleUserSubmit(event) {
-    event.preventDefault()
-    clearMessages()
-
-    const isEditing = Boolean(userForm.id)
-    const basePayload = {
-      username: userForm.username.trim(),
-      firstName: userForm.firstName.trim(),
-      lastName: userForm.lastName.trim(),
-      roleIds: userForm.roleIds.map(Number)
-    }
-
-    const createPayload = {
-      ...basePayload,
-      password: userForm.password,
-    }
-
-    if (!isEditing && !userForm.password.trim()) {
-      setError('La contraseña es obligatoria para crear un usuario.')
-      return
-    }
-
-    try {
-      setSaving(true)
-
-      if (isEditing) {
-        await updateUserRequest(userForm.id, basePayload)
-        await replaceUserRolesRequest(userForm.id, userForm.roleIds)
-        setSuccess('Usuario actualizado correctamente.')
-      } else {
-        const createdPayload = await createUserRequest(createPayload)
-        const createdUser = getSingleRecord(createdPayload, 'user')
-        const createdUserId = createdUser?.id
-
-        if (createdUserId && userForm.roleIds.length > 0) {
-          await replaceUserRolesRequest(createdUserId, userForm.roleIds)
-        }
-
-        setSuccess('Usuario creado correctamente.')
-      }
-
-      setUserForm(initialUserForm)
-      await loadAccessData()
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'No se pudo guardar el usuario.'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleToggleUserStatus(selectedUser) {
-    clearMessages()
-
-    try {
-      setSaving(true)
-      await updateUserStatusRequest(selectedUser.id, !selectedUser.isActive)
-      setSuccess(
-        selectedUser.isActive
-          ? 'Usuario desactivado correctamente.'
-          : 'Usuario activado correctamente.',
-      )
-      await loadAccessData()
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'No se pudo cambiar el estado del usuario.'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function handleRoleFieldChange(event) {
-    const { value } = event.target
-    setRoleForm((current) => ({ ...current, name: value }))
-  }
-
-  function handleRolePermissionToggle(permissionId) {
-    setRoleForm((current) => ({
+  function handlePermissionToggle(permissionId) {
+    setUserForm((current) => ({
       ...current,
       permissionIds: toggleId(current.permissionIds, permissionId),
     }))
   }
 
-  function startCreateRole() {
-    clearMessages()
-    setRoleForm(initialRoleForm)
-  }
-
-  function startEditRole(role) {
-    clearMessages()
-    setRoleForm({
-      id: role.id,
-      name: role.name ?? '',
-      permissionIds: getPermissionIds(role),
-    })
-    setActiveTab('roles')
-  }
-
-  async function handleRoleSubmit(event) {
+  async function handleCreateSubmit(event) {
     event.preventDefault()
-    clearMessages()
+    setModalError('')
 
-    const isEditing = Boolean(roleForm.id)
-    const payload = { name: roleForm.name.trim() }
-
-    try {
-      setSaving(true)
-
-      if (isEditing) {
-        await updateRoleRequest(roleForm.id, payload)
-        await replaceRolePermissionsRequest(roleForm.id, roleForm.permissionIds)
-        setSuccess('Rol actualizado correctamente.')
-      } else {
-        const createdPayload = await createRoleRequest(payload)
-        const createdRole = getSingleRecord(createdPayload, 'role')
-        const createdRoleId = createdRole?.id
-
-        if (createdRoleId && roleForm.permissionIds.length > 0) {
-          await replaceRolePermissionsRequest(createdRoleId, roleForm.permissionIds)
-        }
-
-        setSuccess('Rol creado correctamente.')
-      }
-
-      setRoleForm(initialRoleForm)
-      await loadAccessData()
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'No se pudo guardar el rol.'))
-    } finally {
-      setSaving(false)
+    if (!userForm.roleId) {
+      setModalError('Selecciona un rol para el nuevo usuario.')
+      return
     }
-  }
 
-  function handleMatrixRoleChange(event) {
-    const roleId = event.target.value
-    const selectedRole = roles.find((role) => role.id === roleId)
+    const selectedRole = roles.find((role) => role.id === userForm.roleId)
 
-    setMatrixRoleId(roleId)
-    setMatrixPermissionIds(getPermissionIds(selectedRole))
-    clearMessages()
-  }
-
-  function handleMatrixPermissionToggle(permissionId) {
-    setMatrixPermissionIds((current) => toggleId(current, permissionId))
-  }
-
-  async function handleMatrixSubmit(event) {
-    event.preventDefault()
-    clearMessages()
-
-    if (!matrixRoleId) {
-      setError('Selecciona un rol antes de guardar permisos.')
+    if (!selectedRole) {
+      setModalError('El rol seleccionado ya no está disponible.')
       return
     }
 
     try {
       setSaving(true)
-      await replaceRolePermissionsRequest(matrixRoleId, matrixPermissionIds)
-      setSuccess('Permisos del rol actualizados correctamente.')
-      await loadAccessData()
+
+      const createdPayload = await createUserRequest({
+        username: userForm.username.trim(),
+        password: userForm.password,
+        firstName: userForm.firstName.trim(),
+        lastName: userForm.lastName.trim(),
+        isActive: true,
+        roleIds: [Number(userForm.roleId)],
+      })
+
+      const createdUser = getSingleRecord(createdPayload, 'user')
+      const selectedRoleName = normalizeRoleName(selectedRole.name)
+
+      if (
+        currentUserIsAdmin &&
+        selectedRoleName === 'MANAGER' &&
+        createdUser?.id
+      ) {
+        await replaceUserPermissionsRequest(
+          createdUser.id,
+          userForm.permissionIds.map(Number),
+        )
+      }
+
+      closeModal()
+      setSuccess('Usuario creado correctamente.')
+      await loadAccessData({ preserveMessages: true })
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'No se pudo actualizar la matriz RBAC.'))
+      setModalError(
+        getErrorMessage(requestError, 'No se pudo crear el usuario.'),
+      )
     } finally {
       setSaving(false)
     }
   }
 
-  const activeTabData = accessTabs.find((tab) => tab.id === activeTab)
+  async function handleEditSubmit(event) {
+    event.preventDefault()
+    setModalError('')
+
+    if (!selectedUser) return
+
+    const payload = {
+      username: userForm.username.trim(),
+      firstName: userForm.firstName.trim(),
+      lastName: userForm.lastName.trim(),
+    }
+
+    if (userForm.password.trim()) {
+      payload.password = userForm.password
+    }
+
+    try {
+      setSaving(true)
+      await updateUserRequest(selectedUser.id, payload)
+      closeModal()
+      setSuccess('Datos del usuario actualizados correctamente.')
+      await loadAccessData({ preserveMessages: true })
+    } catch (requestError) {
+      setModalError(
+        getErrorMessage(requestError, 'No se pudo actualizar el usuario.'),
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleAccessSubmit(event) {
+    event.preventDefault()
+    setModalError('')
+
+    if (!selectedUser || !userForm.roleId) {
+      setModalError('Selecciona un rol antes de guardar el acceso.')
+      return
+    }
+
+    const selectedRole = roles.find((role) => role.id === userForm.roleId)
+
+    if (!selectedRole) {
+      setModalError('El rol seleccionado ya no está disponible.')
+      return
+    }
+
+    const wasManager = hasRoleName(selectedUser, 'MANAGER')
+    const willBeManager = normalizeRoleName(selectedRole.name) === 'MANAGER'
+
+    try {
+      setSaving(true)
+
+      if (currentUserIsAdmin && wasManager && !willBeManager) {
+        await replaceUserPermissionsRequest(selectedUser.id, [])
+      }
+
+      await replaceUserRolesRequest(selectedUser.id, [Number(userForm.roleId)])
+
+      if (currentUserIsAdmin && willBeManager) {
+        await replaceUserPermissionsRequest(
+          selectedUser.id,
+          userForm.permissionIds.map(Number),
+        )
+      }
+
+      closeModal()
+      setSuccess('Acceso del usuario actualizado correctamente.')
+      await loadAccessData({ preserveMessages: true })
+    } catch (requestError) {
+      setModalError(
+        getErrorMessage(requestError, 'No se pudo actualizar el acceso.'),
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleStatusSubmit() {
+    setModalError('')
+
+    if (!selectedUser || isCurrentSessionUser(user, selectedUser)) {
+      setModalError('No puedes cambiar el estado de tu propia cuenta.')
+      return
+    }
+
+    try {
+      setSaving(true)
+      await updateUserStatusRequest(selectedUser.id, !selectedUser.isActive)
+      const successMessage = selectedUser.isActive
+        ? 'Usuario desactivado correctamente.'
+        : 'Usuario activado correctamente.'
+
+      closeModal()
+      setSuccess(successMessage)
+      await loadAccessData({ preserveMessages: true })
+    } catch (requestError) {
+      setModalError(
+        getErrorMessage(
+          requestError,
+          'No se pudo cambiar el estado del usuario.',
+        ),
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function canManageUser(item) {
+    if (currentUserIsAdmin) return true
+    if (!currentUserIsManager) return false
+    return !isAdministrativeUser(item)
+  }
+
+  const selectedRole = roles.find((role) => role.id === userForm.roleId)
+  const selectedRoleName = normalizeRoleName(selectedRole?.name)
 
   return (
     <main className="access-page">
@@ -341,7 +514,8 @@ export default function AdminAccessPage() {
           <span className="access-eyebrow">Administración</span>
           <h1>Usuarios y Accesos</h1>
           <p>
-            Gestiona usuarios, roles y permisos del sistema.
+            Consulta primero al personal registrado y abre únicamente la acción
+            que necesites realizar.
           </p>
           <small className="access-last-update">
             Sesión: {user?.fullName || user?.username || 'Administrador'}
@@ -349,6 +523,64 @@ export default function AdminAccessPage() {
         </div>
 
         <div className="access-hero-actions">
+          <div className="access-menu-wrapper" ref={menuRef}>
+            <button
+              type="button"
+              className="btn access-menu-button"
+              onClick={() => setMenuOpen((current) => !current)}
+              aria-expanded={menuOpen}
+              aria-controls="access-admin-menu"
+            >
+              <span>☰</span>
+              Menú
+            </button>
+
+            {menuOpen && (
+              <div className="access-menu-panel" id="access-admin-menu">
+                <div className="access-menu-header">
+                  <div>
+                    <strong>Módulos del sistema</strong>
+                    <p>Accede a las áreas habilitadas para tu cuenta.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="access-menu-close"
+                    onClick={() => setMenuOpen(false)}
+                    aria-label="Cerrar menú"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="access-menu-sections">
+                  {menuSections.map((section) => (
+                    <section className="access-menu-section" key={section.title}>
+                      <h3>{section.title}</h3>
+                      <div className="access-menu-items">
+                        {section.items.map((item) => (
+                          <Link
+                            to={item.to}
+                            className={`access-menu-item ${
+                              item.to === '/admin/access' ? 'is-current' : ''
+                            }`}
+                            key={item.title}
+                            onClick={() => setMenuOpen(false)}
+                          >
+                            <span>{item.icon}</span>
+                            <div>
+                              <strong>{item.title}</strong>
+                              <p>{item.description}</p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <Link to="/dashboard" className="btn access-secondary-button">
             Volver al dashboard
           </Link>
@@ -358,502 +590,494 @@ export default function AdminAccessPage() {
         </div>
       </section>
 
-      <section className="access-layout">
-        <aside className={`access-sidebar ${drawerOpen ? 'is-open' : ''}`}>
-          <div className="access-sidebar-header">
-            <strong>Menú admin</strong>
-            <button
-              type="button"
-              className="access-menu-close"
-              onClick={() => setDrawerOpen(false)}
-              aria-label="Cerrar menú"
-            >
-              ×
-            </button>
-          </div>
+      {error && <section className="access-alert access-alert-error">{error}</section>}
+      {success && (
+        <section className="access-alert access-alert-success">{success}</section>
+      )}
 
-          <button type="button" className="access-menu-item is-active">
-            <span>Usuarios</span>
-            <small>Usuarios y Accesos</small>
-          </button>
-
-          <button type="button" className="access-menu-item" disabled>
-            <span>Órdenes</span>
-            <small>Próximo módulo</small>
-          </button>
-
-          <button type="button" className="access-menu-item" disabled>
-            <span>Hospedaje</span>
-            <small>Próximo módulo</small>
-          </button>
-
-          <button type="button" className="access-menu-item" disabled>
-            <span>Facturación</span>
-            <small>Próximo módulo</small>
-          </button>
-        </aside>
-
-        {drawerOpen && (
-          <button
-            type="button"
-            className="access-drawer-backdrop"
-            onClick={() => setDrawerOpen(false)}
-            aria-label="Cerrar menú administrativo"
-          />
-        )}
-
-        <section className="access-content">
-          <div className="access-toolbar">
-            <button
-              type="button"
-              className="access-menu-button"
-              onClick={() => setDrawerOpen(true)}
-            >
-              ☰ Menú
-            </button>
-
-            <div>
-              <span>Usuarios</span>
-              <strong>Usuarios y Accesos</strong>
-            </div>
-          </div>
-
-          <section className="access-card access-title-card">
-            <div className="access-section-header">
-              <div>
-                <h2>{activeTabData?.label}</h2>
-                <p>{activeTabData?.helper}</p>
-              </div>
-            </div>
-
-            <div className="access-tabs" role="tablist" aria-label="Secciones RBAC">
-              {accessTabs.map((tab) => (
-                <button
-                  type="button"
-                  className={`access-tab ${activeTab === tab.id ? 'is-active' : ''}`}
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {error && <section className="access-alert access-alert-error">{error}</section>}
-          {success && <section className="access-alert access-alert-success">{success}</section>}
-
-          {loading ? (
-            <section className="access-card access-empty-state">Cargando información...</section>
-          ) : (
-            <>
-              {activeTab === 'users' && (
-                <UsersPanel
-                  filteredUsers={filteredUsers}
-                  roles={roles}
-                  userForm={userForm}
-                  userSearch={userSearch}
-                  statusFilter={statusFilter}
-                  roleFilter={roleFilter}
-                  saving={saving}
-                  onSearchChange={setUserSearch}
-                  onStatusFilterChange={setStatusFilter}
-                  onRoleFilterChange={setRoleFilter}
-                  onFieldChange={handleUserFieldChange}
-                  onRoleToggle={handleUserRoleToggle}
-                  onSubmit={handleUserSubmit}
-                  onCreate={startCreateUser}
-                  onEdit={startEditUser}
-                  onToggleStatus={handleToggleUserStatus}
-                />
-              )}
-
-              {activeTab === 'roles' && (
-                <RolesPanel
-                  roles={roles}
-                  permissions={permissions}
-                  roleForm={roleForm}
-                  saving={saving}
-                  onFieldChange={handleRoleFieldChange}
-                  onPermissionToggle={handleRolePermissionToggle}
-                  onSubmit={handleRoleSubmit}
-                  onCreate={startCreateRole}
-                  onEdit={startEditRole}
-                />
-              )}
-
-              {activeTab === 'permissions' && (
-                <PermissionsPanel permissions={permissions} />
-              )}
-
-              {activeTab === 'matrix' && (
-                <MatrixPanel
-                  roles={roles}
-                  permissions={permissions}
-                  matrixRoleId={matrixRoleId}
-                  matrixPermissionIds={matrixPermissionIds}
-                  saving={saving}
-                  onRoleChange={handleMatrixRoleChange}
-                  onPermissionToggle={handleMatrixPermissionToggle}
-                  onSubmit={handleMatrixSubmit}
-                />
-              )}
-            </>
-          )}
-        </section>
-      </section>
-    </main>
-  )
-}
-
-function UsersPanel({
-  filteredUsers,
-  roles,
-  userForm,
-  userSearch,
-  statusFilter,
-  roleFilter,
-  saving,
-  onSearchChange,
-  onStatusFilterChange,
-  onRoleFilterChange,
-  onFieldChange,
-  onRoleToggle,
-  onSubmit,
-  onCreate,
-  onEdit,
-  onToggleStatus,
-}) {
-  const isEditing = Boolean(userForm.id)
-
-  return (
-    <section className="access-two-column">
-      <article className="access-card">
-        <div className="access-section-header">
+      <section className="access-card access-management-card">
+        <div className="access-management-header">
           <div>
-            <h2>{isEditing ? 'Editar usuario' : 'Nuevo usuario'}</h2>
+            <span className="access-section-eyebrow">Gestión de personal</span>
+            <h2>Usuarios registrados</h2>
             <p>
-              {isEditing
-                ? 'Actualiza los datos principales y sus roles.'
-                : 'Crea un usuario administrativo y asígnale roles.'}
+              Visualiza el estado, rol y nivel de acceso antes de realizar cambios.
             </p>
           </div>
+          <button
+            type="button"
+            className="btn access-primary-button"
+            onClick={openCreateModal}
+            disabled={loading || assignableRoles.length === 0}
+          >
+            + Nuevo usuario
+          </button>
+        </div>
 
-          {isEditing && (
-            <button type="button" className="access-small-button" onClick={onCreate}>
-              Nuevo
+        <div className="access-filters" aria-label="Filtros de usuarios">
+          <label className="access-search-field">
+            <span>Buscar</span>
+            <input
+              type="search"
+              placeholder="Nombre o usuario..."
+              value={userSearch}
+              onChange={(event) => setUserSearch(event.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Estado</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="all">Todos</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Inactivos</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Rol</span>
+            <select
+              value={roleFilter}
+              onChange={(event) => setRoleFilter(event.target.value)}
+            >
+              <option value="all">Todos los roles</option>
+              {roles.map((role) => (
+                <option value={role.id} key={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="access-results-summary">
+          <span>
+            {loading
+              ? 'Cargando usuarios...'
+              : `${filteredUsers.length} de ${users.length} usuario(s)`}
+          </span>
+          {(userSearch || statusFilter !== 'all' || roleFilter !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                setUserSearch('')
+                setStatusFilter('all')
+                setRoleFilter('all')
+              }}
+            >
+              Limpiar filtros
             </button>
           )}
         </div>
 
-        <form className="access-form" onSubmit={onSubmit}>
-          <label>
-            Usuario
-            <input
-              type="text"
-              name="username"
-              value={userForm.username}
-              onChange={onFieldChange}
-              minLength={3}
-              maxLength={50}
-              required
-            />
-          </label>
+        {loading ? (
+          <div className="access-empty-state">Cargando información...</div>
+        ) : filteredUsers.length > 0 ? (
+          <div className="access-user-list">
+            <div className="access-user-list-header" aria-hidden="true">
+              <span>Usuario</span>
+              <span>Rol</span>
+              <span>Acceso</span>
+              <span>Estado</span>
+              <span>Acciones</span>
+            </div>
 
-          <div className="access-form-grid">
-            <label>
-              Nombre
-              <input
-                type="text"
-                name="firstName"
-                value={userForm.firstName}
-                onChange={onFieldChange}
-                maxLength={80}
-                required
-              />
-            </label>
+            {filteredUsers.map((item) => {
+              const isSelf = isCurrentSessionUser(user, item)
+              const manageable = canManageUser(item)
+              const accessSummary = getAccessSummary(item)
 
-            <label>
-              Apellido
-              <input
-                type="text"
-                name="lastName"
-                value={userForm.lastName}
-                onChange={onFieldChange}
-                maxLength={80}
-                required
-              />
-            </label>
+              return (
+                <article className="access-user-row" key={item.id}>
+                  <div className="access-user-identity">
+                    <span className="access-avatar" aria-hidden="true">
+                      {getInitials(item)}
+                    </span>
+                    <div>
+                      <strong>{getFullName(item)}</strong>
+                      <p>@{item.username}</p>
+                      {isSelf && <small>Tu cuenta</small>}
+                    </div>
+                  </div>
+
+                  <div className="access-user-cell" data-label="Rol">
+                    <div className="access-badges">
+                      {getRoleNames(item).map((roleName) => (
+                        <span key={roleName}>{roleName}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="access-user-cell" data-label="Acceso">
+                    <strong className="access-level-title">{accessSummary.title}</strong>
+                    <small>{accessSummary.detail}</small>
+                  </div>
+
+                  <div className="access-user-cell" data-label="Estado">
+                    <span
+                      className={`access-status ${
+                        item.isActive ? 'is-active' : 'is-inactive'
+                      }`}
+                    >
+                      {item.isActive ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
+
+                  <div className="access-row-actions" data-label="Acciones">
+                    <button type="button" onClick={() => openDetailModal(item)}>
+                      Ver detalle
+                    </button>
+
+                    {manageable && (
+                      <>
+                        <button type="button" onClick={() => openEditModal(item)}>
+                          Editar
+                        </button>
+                        <button type="button" onClick={() => openAccessModal(item)}>
+                          Gestionar acceso
+                        </button>
+                        <button
+                          type="button"
+                          className={item.isActive ? 'is-danger' : 'is-success'}
+                          onClick={() => openStatusModal(item)}
+                          disabled={isSelf}
+                          title={
+                            isSelf
+                              ? 'No puedes cambiar el estado de tu propia cuenta.'
+                              : undefined
+                          }
+                        >
+                          {item.isActive ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {!manageable && currentUserIsManager && (
+                    <p className="access-restriction-note">
+                      Solo ADMIN puede modificar cuentas ADMIN o MANAGER.
+                    </p>
+                  )}
+                </article>
+              )
+            })}
           </div>
+        ) : (
+          <div className="access-empty-state">
+            No hay usuarios que coincidan con los filtros seleccionados.
+          </div>
+        )}
+      </section>
 
-          {!isEditing && (
+      {activeModal === 'create' && (
+        <AccessModal
+          title="Nuevo usuario"
+          subtitle="Registra sus datos y define el acceso inicial."
+          onClose={closeModal}
+          saving={saving}
+          size="large"
+        >
+          <UserCreateForm
+            userForm={userForm}
+            roles={assignableRoles}
+            permissions={permissions}
+            selectedRoleName={selectedRoleName}
+            isAdmin={currentUserIsAdmin}
+            saving={saving}
+            error={modalError}
+            onFieldChange={handleUserFieldChange}
+            onRoleChange={handleRoleChange}
+            onPermissionToggle={handlePermissionToggle}
+            onSubmit={handleCreateSubmit}
+            onCancel={closeModal}
+          />
+        </AccessModal>
+      )}
+
+      {activeModal === 'detail' && selectedUser && (
+        <AccessModal
+          title="Detalle del usuario"
+          subtitle={getFullName(selectedUser)}
+          onClose={closeModal}
+          saving={saving}
+        >
+          <UserDetail user={selectedUser} />
+          <div className="access-modal-actions">
+            <button type="button" className="access-cancel-button" onClick={closeModal}>
+              Cerrar
+            </button>
+          </div>
+        </AccessModal>
+      )}
+
+      {activeModal === 'edit' && selectedUser && (
+        <AccessModal
+          title="Editar usuario"
+          subtitle={getFullName(selectedUser)}
+          onClose={closeModal}
+          saving={saving}
+        >
+          <form className="access-form" onSubmit={handleEditSubmit}>
+            {modalError && (
+              <div className="access-alert access-alert-error">{modalError}</div>
+            )}
             <label>
-              Contraseña inicial
+              <span>Usuario</span>
+              <input
+                type="text"
+                name="username"
+                value={userForm.username}
+                onChange={handleUserFieldChange}
+                minLength={3}
+                maxLength={50}
+                required
+              />
+            </label>
+            <div className="access-form-grid">
+              <label>
+                <span>Nombre</span>
+                <input
+                  type="text"
+                  name="firstName"
+                  value={userForm.firstName}
+                  onChange={handleUserFieldChange}
+                  maxLength={80}
+                  required
+                />
+              </label>
+              <label>
+                <span>Apellido</span>
+                <input
+                  type="text"
+                  name="lastName"
+                  value={userForm.lastName}
+                  onChange={handleUserFieldChange}
+                  maxLength={80}
+                  required
+                />
+              </label>
+            </div>
+            <label>
+              <span>Nueva contraseña</span>
               <input
                 type="password"
                 name="password"
                 value={userForm.password}
-                onChange={onFieldChange}
-                minLength={6}
+                onChange={handleUserFieldChange}
+                minLength={8}
                 maxLength={72}
-                required
+                placeholder="Déjala vacía para conservar la actual"
               />
+              <small>Solo se actualizará si escribes una nueva contraseña.</small>
             </label>
-          )}
-
-          <fieldset className="access-check-group">
-            <legend>Roles del usuario</legend>
-
-            {roles.length > 0 ? (
-              roles.map((role) => (
-                <label className="access-check-item" key={role.id}>
-                  <input
-                    type="checkbox"
-                    checked={userForm.roleIds.includes(role.id)}
-                    onChange={() => onRoleToggle(role.id)}
-                  />
-                  <span>{role.name}</span>
-                </label>
-              ))
-            ) : (
-              <p className="access-muted">Todavía no hay roles registrados.</p>
-            )}
-          </fieldset>
-
-          <button type="submit" className="btn access-primary-button" disabled={saving}>
-            {saving ? 'Guardando...' : isEditing ? 'Guardar usuario' : 'Crear usuario'}
-          </button>
-        </form>
-      </article>
-
-      <article className="access-card">
-        <div className="access-section-header">
-          <div>
-            <h2>Listado de usuarios</h2>
-            <p>Filtra por nombre, usuario, estado o rol.</p>
-          </div>
-        </div>
-
-        <div className="access-filters">
-          <input
-            type="search"
-            placeholder="Buscar usuario..."
-            value={userSearch}
-            onChange={(event) => onSearchChange(event.target.value)}
-          />
-
-          <select
-            value={statusFilter}
-            onChange={(event) => onStatusFilterChange(event.target.value)}
-          >
-            <option value="all">Todos los estados</option>
-            <option value="active">Activos</option>
-            <option value="inactive">Inactivos</option>
-          </select>
-
-          <select
-            value={roleFilter}
-            onChange={(event) => onRoleFilterChange(event.target.value)}
-          >
-            <option value="all">Todos los roles</option>
-            {roles.map((role) => (
-              <option value={role.id} key={role.id}>
-                {role.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {filteredUsers.length > 0 ? (
-          <div className="access-list">
-            {filteredUsers.map((item) => (
-              <div className="access-list-item" key={item.id}>
-                <div>
-                  <strong>{getFullName(item)}</strong>
-                  <p>@{item.username}</p>
-
-                  <div className="access-badges">
-                    <span className={item.isActive ? 'badge-success' : 'badge-danger'}>
-                      {item.isActive ? 'Activo' : 'Inactivo'}
-                    </span>
-                    {getRoleNames(item).map((roleName) => (
-                      <span key={roleName}>{roleName}</span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="access-row-actions">
-                  <button type="button" onClick={() => onEdit(item)}>
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => onToggleStatus(item)}>
-                    {item.isActive ? 'Desactivar' : 'Activar'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="access-empty-state">No hay usuarios con esos filtros.</div>
-        )}
-      </article>
-    </section>
-  )
-}
-
-function RolesPanel({
-  roles,
-  permissions,
-  roleForm,
-  saving,
-  onFieldChange,
-  onPermissionToggle,
-  onSubmit,
-  onCreate,
-  onEdit,
-}) {
-  const isEditing = Boolean(roleForm.id)
-
-  return (
-    <section className="access-two-column">
-      <article className="access-card">
-        <div className="access-section-header">
-          <div>
-            <h2>{isEditing ? 'Editar rol' : 'Nuevo rol'}</h2>
-            <p>Define el nombre del rol y sus permisos asociados.</p>
-          </div>
-
-          {isEditing && (
-            <button type="button" className="access-small-button" onClick={onCreate}>
-              Nuevo
-            </button>
-          )}
-        </div>
-
-        <form className="access-form" onSubmit={onSubmit}>
-          <label>
-            Nombre del rol
-            <input
-              type="text"
-              value={roleForm.name}
-              onChange={onFieldChange}
-              minLength={3}
-              maxLength={50}
-              required
-            />
-          </label>
-
-          <fieldset className="access-check-group">
-            <legend>Permisos del rol</legend>
-
-            {permissions.length > 0 ? (
-              permissions.map((permission) => (
-                <label className="access-check-item" key={permission.id}>
-                  <input
-                    type="checkbox"
-                    checked={roleForm.permissionIds.includes(permission.id)}
-                    onChange={() => onPermissionToggle(permission.id)}
-                  />
-                  <span>{permission.code}</span>
-                  {permission.description && <small>{permission.description}</small>}
-                </label>
-              ))
-            ) : (
-              <p className="access-muted">Todavía no hay permisos registrados.</p>
-            )}
-          </fieldset>
-
-          <button type="submit" className="btn access-primary-button" disabled={saving}>
-            {saving ? 'Guardando...' : isEditing ? 'Guardar rol' : 'Crear rol'}
-          </button>
-        </form>
-      </article>
-
-      <article className="access-card">
-        <div className="access-section-header">
-          <div>
-            <h2>Roles registrados</h2>
-            <p>Selecciona un rol para editar sus permisos.</p>
-          </div>
-        </div>
-
-        {roles.length > 0 ? (
-          <div className="access-list">
-            {roles.map((role) => (
-              <div className="access-list-item" key={role.id}>
-                <div>
-                  <strong>{role.name}</strong>
-                  <p>{getPermissionIds(role).length} permiso(s) asignado(s)</p>
-                </div>
-
-                <div className="access-row-actions">
-                  <button type="button" onClick={() => onEdit(role)}>
-                    Editar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="access-empty-state">Todavía no hay roles registrados.</div>
-        )}
-      </article>
-    </section>
-  )
-}
-
-function PermissionsPanel({ permissions }) {
-  return (
-    <section className="access-card">
-      <div className="access-section-header">
-        <div>
-          <h2>Permisos del sistema</h2>
-          <p>
-            Por ahora se muestran como catálogo técnico. Si quieres CRUD completo de permisos,
-            primero agregamos endpoints específicos en backend.
-          </p>
-        </div>
-      </div>
-
-      {permissions.length > 0 ? (
-        <div className="access-permission-grid">
-          {permissions.map((permission) => (
-            <article className="access-permission-card" key={permission.id}>
-              <strong>{permission.code}</strong>
-              <p>{permission.description || 'Sin descripción registrada.'}</p>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="access-empty-state">Todavía no hay permisos registrados.</div>
+            <div className="access-modal-actions">
+              <button type="button" className="access-cancel-button" onClick={closeModal}>
+                Cancelar
+              </button>
+              <button type="submit" className="access-save-button" disabled={saving}>
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        </AccessModal>
       )}
-    </section>
+
+      {activeModal === 'access' && selectedUser && (
+        <AccessModal
+          title="Gestionar acceso"
+          subtitle={getFullName(selectedUser)}
+          onClose={closeModal}
+          saving={saving}
+          size="large"
+        >
+          <form className="access-form" onSubmit={handleAccessSubmit}>
+            {modalError && (
+              <div className="access-alert access-alert-error">{modalError}</div>
+            )}
+
+            <label>
+              <span>Rol del usuario</span>
+              <select value={userForm.roleId} onChange={handleRoleChange} required>
+                <option value="">Selecciona un rol</option>
+                {assignableRoles.map((role) => (
+                  <option value={role.id} key={role.id}>
+                    {role.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <RoleAccessExplanation roleName={selectedRoleName} />
+
+            {currentUserIsAdmin && selectedRoleName === 'MANAGER' && (
+              <PermissionSelector
+                permissions={permissions}
+                selectedIds={userForm.permissionIds}
+                onToggle={handlePermissionToggle}
+              />
+            )}
+
+            <div className="access-modal-actions">
+              <button type="button" className="access-cancel-button" onClick={closeModal}>
+                Cancelar
+              </button>
+              <button type="submit" className="access-save-button" disabled={saving}>
+                {saving ? 'Actualizando...' : 'Actualizar acceso'}
+              </button>
+            </div>
+          </form>
+        </AccessModal>
+      )}
+
+      {activeModal === 'status' && selectedUser && (
+        <AccessModal
+          title={selectedUser.isActive ? 'Desactivar usuario' : 'Activar usuario'}
+          subtitle={getFullName(selectedUser)}
+          onClose={closeModal}
+          saving={saving}
+        >
+          {modalError && (
+            <div className="access-alert access-alert-error">{modalError}</div>
+          )}
+          <div className="access-confirmation">
+            <span className={selectedUser.isActive ? 'is-danger' : 'is-success'}>
+              {selectedUser.isActive ? '!' : '✓'}
+            </span>
+            <div>
+              <strong>
+                {selectedUser.isActive
+                  ? `¿Desactivar a ${getFullName(selectedUser)}?`
+                  : `¿Activar a ${getFullName(selectedUser)}?`}
+              </strong>
+              <p>
+                {selectedUser.isActive
+                  ? 'La persona no podrá iniciar sesión ni utilizar el sistema hasta que su cuenta vuelva a activarse.'
+                  : 'La persona podrá volver a iniciar sesión y utilizar los módulos permitidos por su rol y sus permisos.'}
+              </p>
+            </div>
+          </div>
+          <div className="access-modal-actions">
+            <button type="button" className="access-cancel-button" onClick={closeModal}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className={
+                selectedUser.isActive
+                  ? 'access-danger-button'
+                  : 'access-save-button'
+              }
+              onClick={handleStatusSubmit}
+              disabled={saving}
+            >
+              {saving
+                ? 'Procesando...'
+                : selectedUser.isActive
+                  ? 'Desactivar usuario'
+                  : 'Activar usuario'}
+            </button>
+          </div>
+        </AccessModal>
+      )}
+    </main>
   )
 }
 
-function MatrixPanel({
+function UserCreateForm({
+  userForm,
   roles,
   permissions,
-  matrixRoleId,
-  matrixPermissionIds,
+  selectedRoleName,
+  isAdmin,
   saving,
+  error,
+  onFieldChange,
   onRoleChange,
   onPermissionToggle,
   onSubmit,
+  onCancel,
 }) {
   return (
-    <section className="access-card">
-      <div className="access-section-header">
-        <div>
-          <h2>Matriz RBAC</h2>
-          <p>Selecciona un rol y marca los permisos que debe tener.</p>
+    <form className="access-form" onSubmit={onSubmit}>
+      {error && <div className="access-alert access-alert-error">{error}</div>}
+
+      <div className="access-form-section">
+        <div className="access-form-section-heading">
+          <span>1</span>
+          <div>
+            <strong>Datos del usuario</strong>
+            <small>Información utilizada para identificar e iniciar sesión.</small>
+          </div>
         </div>
+
+        <label>
+          <span>Usuario</span>
+          <input
+            type="text"
+            name="username"
+            value={userForm.username}
+            onChange={onFieldChange}
+            minLength={3}
+            maxLength={50}
+            required
+          />
+        </label>
+
+        <div className="access-form-grid">
+          <label>
+            <span>Nombre</span>
+            <input
+              type="text"
+              name="firstName"
+              value={userForm.firstName}
+              onChange={onFieldChange}
+              maxLength={80}
+              required
+            />
+          </label>
+          <label>
+            <span>Apellido</span>
+            <input
+              type="text"
+              name="lastName"
+              value={userForm.lastName}
+              onChange={onFieldChange}
+              maxLength={80}
+              required
+            />
+          </label>
+        </div>
+
+        <label>
+          <span>Contraseña inicial</span>
+          <input
+            type="password"
+            name="password"
+            value={userForm.password}
+            onChange={onFieldChange}
+            minLength={8}
+            maxLength={72}
+            required
+          />
+          <small>Debe contener al menos 8 caracteres.</small>
+        </label>
       </div>
 
-      <form className="access-form" onSubmit={onSubmit}>
+      <div className="access-form-section">
+        <div className="access-form-section-heading">
+          <span>2</span>
+          <div>
+            <strong>Acceso inicial</strong>
+            <small>Define el rol y, cuando corresponda, sus permisos.</small>
+          </div>
+        </div>
+
         <label>
-          Rol
-          <select value={matrixRoleId} onChange={onRoleChange} required>
+          <span>Rol</span>
+          <select value={userForm.roleId} onChange={onRoleChange} required>
             <option value="">Selecciona un rol</option>
             {roles.map((role) => (
               <option value={role.id} key={role.id}>
@@ -863,31 +1087,195 @@ function MatrixPanel({
           </select>
         </label>
 
-        <fieldset className="access-check-group access-matrix-grid">
-          <legend>Permisos disponibles</legend>
+        <RoleAccessExplanation roleName={selectedRoleName} />
 
-          {permissions.length > 0 ? (
-            permissions.map((permission) => (
-              <label className="access-check-item" key={permission.id}>
-                <input
-                  type="checkbox"
-                  checked={matrixPermissionIds.includes(permission.id)}
-                  onChange={() => onPermissionToggle(permission.id)}
-                />
-                <span>{permission.code}</span>
-                {permission.description && <small>{permission.description}</small>}
-              </label>
-            ))
-          ) : (
-            <p className="access-muted">Todavía no hay permisos registrados.</p>
-          )}
-        </fieldset>
+        {isAdmin && selectedRoleName === 'MANAGER' && (
+          <PermissionSelector
+            permissions={permissions}
+            selectedIds={userForm.permissionIds}
+            onToggle={onPermissionToggle}
+          />
+        )}
+      </div>
 
-        <button type="submit" className="btn access-primary-button" disabled={saving}>
-          {saving ? 'Guardando...' : 'Guardar matriz RBAC'}
+      <div className="access-modal-actions">
+        <button type="button" className="access-cancel-button" onClick={onCancel}>
+          Cancelar
         </button>
-      </form>
-    </section>
+        <button type="submit" className="access-save-button" disabled={saving}>
+          {saving ? 'Creando...' : 'Crear usuario'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function RoleAccessExplanation({ roleName }) {
+  if (!roleName) return null
+
+  const explanations = {
+    ADMIN: {
+      title: 'Acceso administrativo total',
+      detail: 'ADMIN utiliza bypass y no necesita permisos individuales.',
+      tone: 'total',
+    },
+    MANAGER: {
+      title: 'Acceso administrativo personalizado',
+      detail: 'Selecciona individualmente los módulos que podrá gestionar.',
+      tone: 'custom',
+    },
+    MESERO: {
+      title: 'Acceso definido por rol',
+      detail: 'Podrá utilizar el flujo operativo de órdenes para meseros.',
+      tone: 'role',
+    },
+    COCINA: {
+      title: 'Acceso definido por rol',
+      detail: 'Podrá utilizar el módulo operativo de cocina.',
+      tone: 'role',
+    },
+    CAJA: {
+      title: 'Acceso definido por rol',
+      detail: 'Podrá utilizar el módulo operativo de facturación y caja.',
+      tone: 'role',
+    },
+  }
+
+  const explanation = explanations[roleName] ?? {
+    title: 'Acceso definido por rol',
+    detail: 'El acceso dependerá del rol seleccionado.',
+    tone: 'role',
+  }
+
+  return (
+    <div className={`access-role-explanation is-${explanation.tone}`}>
+      <strong>{explanation.title}</strong>
+      <p>{explanation.detail}</p>
+    </div>
+  )
+}
+
+function PermissionSelector({ permissions, selectedIds, onToggle }) {
+  return (
+    <fieldset className="access-permission-fieldset">
+      <legend>Permisos individuales del MANAGER</legend>
+      <p>
+        Marca únicamente los módulos administrativos que esta persona necesita.
+      </p>
+
+      {permissions.length > 0 ? (
+        <div className="access-permission-grid">
+          {permissions.map((permission) => (
+            <label className="access-permission-option" key={permission.id}>
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(permission.id)}
+                onChange={() => onToggle(permission.id)}
+              />
+              <span>
+                <strong>{getPermissionLabel(permission.code)}</strong>
+                <small>{permission.description || permission.code}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+      ) : (
+        <div className="access-empty-state">
+          No hay permisos disponibles para asignar.
+        </div>
+      )}
+    </fieldset>
+  )
+}
+
+function UserDetail({ user }) {
+  const accessSummary = getAccessSummary(user)
+
+  return (
+    <div className="access-detail-grid">
+      <div>
+        <span>Nombre completo</span>
+        <strong>{getFullName(user)}</strong>
+      </div>
+      <div>
+        <span>Usuario</span>
+        <strong>@{user.username}</strong>
+      </div>
+      <div>
+        <span>Estado</span>
+        <strong>{user.isActive ? 'Activo' : 'Inactivo'}</strong>
+      </div>
+      <div>
+        <span>Fecha de creación</span>
+        <strong>{formatDate(user.createdAt)}</strong>
+      </div>
+      <div className="access-detail-wide">
+        <span>Roles</span>
+        <div className="access-badges">
+          {getRoleNames(user).map((roleName) => (
+            <span key={roleName}>{roleName}</span>
+          ))}
+        </div>
+      </div>
+      <div className="access-detail-wide">
+        <span>Nivel de acceso</span>
+        <strong>{accessSummary.title}</strong>
+        <small>{accessSummary.detail}</small>
+      </div>
+      {hasRoleName(user, 'MANAGER') && (
+        <div className="access-detail-wide">
+          <span>Permisos individuales</span>
+          {Array.isArray(user.permissions) && user.permissions.length > 0 ? (
+            <div className="access-detail-permissions">
+              {user.permissions.map((permission) => (
+                <span key={permission.id || permission.code}>
+                  {getPermissionLabel(permission.code)}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <small>Este MANAGER no tiene permisos administrativos asignados.</small>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AccessModal({
+  title,
+  subtitle,
+  onClose,
+  saving,
+  size = 'normal',
+  children,
+}) {
+  return (
+    <div className="access-modal-backdrop" role="presentation">
+      <section
+        className={`access-modal access-modal-${size}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="access-modal-title"
+      >
+        <header className="access-modal-header">
+          <div>
+            <h2 id="access-modal-title">{title}</h2>
+            {subtitle && <p>{subtitle}</p>}
+          </div>
+          <button
+            type="button"
+            className="access-modal-close"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="Cerrar ventana"
+          >
+            ×
+          </button>
+        </header>
+        <div className="access-modal-body">{children}</div>
+      </section>
+    </div>
   )
 }
 
@@ -907,7 +1295,10 @@ function normalizeIds(items) {
       ? item.roles.map((role) => ({ ...role, id: String(role.id) }))
       : item.roles,
     permissions: Array.isArray(item.permissions)
-      ? item.permissions.map((permission) => ({ ...permission, id: String(permission.id) }))
+      ? item.permissions.map((permission) => ({
+          ...permission,
+          id: String(permission.id),
+        }))
       : item.permissions,
   }))
 }
@@ -920,32 +1311,123 @@ function getSingleRecord(payload, key) {
   return null
 }
 
-function getRoleIds(user) {
-  if (!Array.isArray(user?.roles)) return []
-  return user.roles.map((role) => String(role.id))
+function getRoleIds(item) {
+  if (!Array.isArray(item?.roles)) return []
+  return item.roles.map((role) => String(role.id))
 }
 
-function getRoleNames(user) {
-  if (!Array.isArray(user?.roles)) return []
-  return user.roles.map((role) => role.name).filter(Boolean)
+function getRoleNames(item) {
+  if (!Array.isArray(item?.roles)) return []
+  return item.roles.map((role) => role.name).filter(Boolean)
 }
 
-function getPermissionIds(role) {
-  if (!Array.isArray(role?.permissions)) return []
-  return role.permissions.map((permission) => String(permission.id))
+function getPermissionIds(item) {
+  if (!Array.isArray(item?.permissions)) return []
+  return item.permissions.map((permission) => String(permission.id))
 }
 
-function getFullName(user) {
-  return user?.fullName || `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || 'Sin nombre'
+function hasRoleName(item, roleName) {
+  const normalizedTarget = normalizeRoleName(roleName)
+  return getRoleNames(item).some(
+    (currentRole) => normalizeRoleName(currentRole) === normalizedTarget,
+  )
 }
 
-function toggleId(currentIds, id) {
+function isAdministrativeUser(item) {
+  return hasRoleName(item, 'ADMIN') || hasRoleName(item, 'MANAGER')
+}
+
+function isCurrentSessionUser(currentUser, listedUser) {
+  return String(currentUser?.id ?? '') === String(listedUser?.id ?? '')
+}
+
+function getAccessSummary(item) {
+  if (hasRoleName(item, 'ADMIN')) {
+    return {
+      title: 'Acceso total',
+      detail: 'Bypass administrativo',
+    }
+  }
+
+  if (hasRoleName(item, 'MANAGER')) {
+    const totalPermissions = Array.isArray(item?.permissions)
+      ? item.permissions.length
+      : 0
+
+    return {
+      title: 'Acceso personalizado',
+      detail:
+        totalPermissions === 1
+          ? '1 permiso administrativo'
+          : `${totalPermissions} permisos administrativos`,
+    }
+  }
+
+  return {
+    title: 'Acceso por rol',
+    detail: getRoleNames(item).join(', ') || 'Sin rol asignado',
+  }
+}
+
+function getFullName(item) {
+  const fullName = String(item?.fullName ?? '').trim()
+  if (fullName) return fullName
+
+  const calculatedName = `${item?.firstName ?? ''} ${item?.lastName ?? ''}`.trim()
+  return calculatedName || item?.username || 'Usuario sin nombre'
+}
+
+function getInitials(item) {
+  const firstName = String(item?.firstName ?? '').trim()
+  const lastName = String(item?.lastName ?? '').trim()
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+  return initials || String(item?.username ?? 'U').charAt(0).toUpperCase()
+}
+
+function normalizeRoleName(roleName) {
+  return String(roleName ?? '').trim().toUpperCase()
+}
+
+function toggleId(ids, id) {
   const normalizedId = String(id)
-  return currentIds.includes(normalizedId)
-    ? currentIds.filter((currentId) => currentId !== normalizedId)
-    : [...currentIds, normalizedId]
+
+  return ids.includes(normalizedId)
+    ? ids.filter((currentId) => currentId !== normalizedId)
+    : [...ids, normalizedId]
+}
+
+function getPermissionLabel(code) {
+  const labels = {
+    ADMIN_USERS_MANAGE: 'Usuarios y accesos',
+    ADMIN_ORDERS_MANAGE: 'Órdenes',
+    ADMIN_KITCHEN_MANAGE: 'Cocina / KDS',
+    ADMIN_TABLES_MANAGE: 'Mesas',
+    'ADMIN_SHIFTS_&_STATIONS_MANAGE': 'Turnos y estaciones',
+    ADMIN_MENU_MANAGE: 'Menú del restaurante',
+    ADMIN_LODGING_MANAGE: 'Hospedaje',
+    ADMIN_BILLING_MANAGE: 'Facturación',
+  }
+
+  return labels[code] || code
+}
+
+function formatDate(dateValue) {
+  if (!dateValue) return 'No disponible'
+
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return 'No disponible'
+
+  return new Intl.DateTimeFormat('es-NI', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
 }
 
 function getErrorMessage(error, fallback) {
-  return error?.response?.data?.message || error?.message || fallback
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    error?.message ||
+    fallback
+  )
 }

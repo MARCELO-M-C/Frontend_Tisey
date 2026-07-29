@@ -14,11 +14,10 @@ import WaiterOrdersPage from '../pages/WaiterOrdersPage'
 import RoleHomeRedirect from '../auth/RoleHomeRedirect'
 import ProtectedRoute from '../auth/ProtectedRoute'
 
-const ADMIN_ROLES = [
-  'ADMIN',
-  'ADMINISTRADOR',
-  'ADMINISTRATOR',
-]
+const ADMIN_ROLES = ['ADMIN', 'ADMINISTRADOR', 'ADMINISTRATOR']
+const MANAGER_ROLES = ['MANAGER', 'GERENTE', 'ENCARGADO']
+
+const DASHBOARD_ROLES = [...ADMIN_ROLES, ...MANAGER_ROLES]
 
 const BILLING_ROLES = [
   ...ADMIN_ROLES,
@@ -37,6 +36,7 @@ const KITCHEN_ROLES = [
 ]
 
 const WAITER_ROLES = [
+  ...ADMIN_ROLES,
   'MESERO',
   'MESERA',
   'WAITER',
@@ -52,7 +52,7 @@ export default function AppRoutes() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <ProtectedRoute allowedRoles={DASHBOARD_ROLES}>
               <DashboardPage />
             </ProtectedRoute>
           }
@@ -61,7 +61,7 @@ export default function AppRoutes() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <ProtectedRoute requiredPermissions={['ADMIN_USERS_MANAGE']}>
               <Navigate to="/admin/access" replace />
             </ProtectedRoute>
           }
@@ -70,7 +70,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/access"
           element={
-            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <ProtectedRoute requiredPermissions={['ADMIN_USERS_MANAGE']}>
               <AdminAccessPage />
             </ProtectedRoute>
           }
@@ -79,7 +79,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/restaurant-tables"
           element={
-            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <ProtectedRoute requiredPermissions={['ADMIN_TABLES_MANAGE']}>
               <AdminRestaurantTablesPage />
             </ProtectedRoute>
           }
@@ -88,7 +88,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/menu"
           element={
-            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <ProtectedRoute requiredPermissions={['ADMIN_MENU_MANAGE']}>
               <AdminMenuPage />
             </ProtectedRoute>
           }
@@ -97,7 +97,9 @@ export default function AppRoutes() {
         <Route
           path="/admin/operations"
           element={
-            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <ProtectedRoute
+              requiredPermissions={['ADMIN_SHIFTS_&_STATIONS_MANAGE']}
+            >
               <AdminOperationsPage />
             </ProtectedRoute>
           }
@@ -106,7 +108,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/lodging"
           element={
-            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <ProtectedRoute requiredPermissions={['ADMIN_LODGING_MANAGE']}>
               <AdminLodgingPage />
             </ProtectedRoute>
           }
@@ -115,7 +117,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/orders"
           element={
-            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+            <ProtectedRoute requiredPermissions={['ADMIN_ORDERS_MANAGE']}>
               <AdminOrdersPage />
             </ProtectedRoute>
           }
@@ -124,7 +126,11 @@ export default function AppRoutes() {
         <Route
           path="/orders"
           element={
-            <ProtectedRoute allowedRoles={WAITER_ROLES}>
+            <ProtectedRoute
+              allowedRoles={WAITER_ROLES}
+              requiredPermissions={['ADMIN_ORDERS_MANAGE']}
+              accessMode="any"
+            >
               <WaiterOrdersPage />
             </ProtectedRoute>
           }
@@ -133,7 +139,11 @@ export default function AppRoutes() {
         <Route
           path="/billing"
           element={
-            <ProtectedRoute allowedRoles={BILLING_ROLES}>
+            <ProtectedRoute
+              allowedRoles={BILLING_ROLES}
+              requiredPermissions={['ADMIN_BILLING_MANAGE']}
+              accessMode="any"
+            >
               <BillingPage />
             </ProtectedRoute>
           }
@@ -142,17 +152,17 @@ export default function AppRoutes() {
         <Route
           path="/kitchen"
           element={
-            <ProtectedRoute allowedRoles={KITCHEN_ROLES}>
+            <ProtectedRoute
+              allowedRoles={KITCHEN_ROLES}
+              requiredPermissions={['ADMIN_KITCHEN_MANAGE']}
+              accessMode="any"
+            >
               <KitchenPage />
             </ProtectedRoute>
           }
         />
 
-        <Route
-          path="/unauthorized"
-          element={<UnauthorizedPage />}
-        />
-
+        <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="/" element={<RoleHomeRedirect />} />
         <Route path="*" element={<RoleHomeRedirect />} />
       </Routes>
