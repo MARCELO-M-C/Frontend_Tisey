@@ -97,7 +97,10 @@
   gap: 0.55rem;
   padding: 0 1.15rem;
   border-radius: 16px;
-  font-weight: 800;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 800 !important;
+  line-height: 1;
   text-decoration: none;
 }
 
@@ -341,7 +344,6 @@
 }
 
 .tables-primary-button,
-.tables-refresh-button,
 .tables-save-button,
 .tables-danger-button,
 .tables-cancel-button {
@@ -353,7 +355,7 @@
   padding: 0 1.05rem;
   border: 1px solid transparent;
   border-radius: 15px;
-  font-weight: 820;
+  font-weight: 820 !important;
 }
 
 .tables-primary-button,
@@ -368,21 +370,14 @@
   background: #244b33;
 }
 
-.tables-refresh-button,
 .tables-cancel-button {
   color: #365143;
   border-color: #cfddd3;
   background: #f8fbf9;
 }
 
-.tables-refresh-button:hover:not(:disabled),
 .tables-cancel-button:hover:not(:disabled) {
   background: #edf5ef;
-}
-
-.tables-refresh-button svg {
-  width: 18px;
-  height: 18px;
 }
 
 .tables-danger-button {
@@ -786,14 +781,20 @@
 }
 
 .tables-switch {
-  grid-template-columns: auto 44px minmax(0, 1fr);
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
   gap: 0.75rem;
   align-items: center;
+  width: 100%;
   padding: 0.85rem;
   border: 1px solid #dbe6de;
   border-radius: 17px;
   background: #ffffff;
   cursor: pointer;
+}
+
+.tables-switch > span:last-child {
+  min-width: 0;
 }
 
 .tables-switch input {

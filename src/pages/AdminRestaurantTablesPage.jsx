@@ -482,16 +482,7 @@ export default function AdminRestaurantTablesPage() {
             </p>
           </div>
 
-          <div className="tables-management-actions">
-            <button
-              type="button"
-              className="tables-refresh-button"
-              onClick={() => loadTables()}
-              disabled={loading || saving}
-            >
-              <RefreshIcon />
-              {loading ? 'Actualizando...' : 'Actualizar'}
-            </button>
+          <div className="tables-management-actions">            
             <button
               type="button"
               className="btn tables-primary-button"
@@ -924,21 +915,6 @@ function TableModal({ title, subtitle, onClose, saving, children }) {
         <div className="tables-modal-body">{children}</div>
       </section>
     </div>
-  )
-}
-
-function RefreshIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   )
 }
 
