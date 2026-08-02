@@ -82,11 +82,18 @@ export async function updateStayRequest(stayId, payload) {
   return data
 }
 
-export async function updateStayStatusRequest(stayId, status) {
-  const { data } = await api.patch(`/stays/${stayId}/status`, {
-    status,
-  })
+export async function updateStayStatusRequest(
+  stayId,
+  status,
+  notes = null,
+) {
+  const payload = { status }
 
+  if (typeof notes === 'string' && notes.trim()) {
+    payload.notes = notes.trim()
+  }
+
+  const { data } = await api.patch(`/stays/${stayId}/status`, payload)
   return data
 }
 
@@ -95,5 +102,23 @@ export async function replaceStayGuestsRequest(stayId, guestIds) {
     guestIds,
   })
 
+  return data
+}
+
+// Tarifas de hospedaje
+
+export async function getLodgingRatesRequest(params = {}) {
+  const { data } = await api.get('/lodging-rates', { params })
+  return data
+}
+
+export async function getCurrentLodgingRateRequest(date = '') {
+  const params = date ? { date } : {}
+  const { data } = await api.get('/lodging-rates/current', { params })
+  return data
+}
+
+export async function createLodgingRateRequest(payload) {
+  const { data } = await api.post('/lodging-rates', payload)
   return data
 }
