@@ -825,6 +825,10 @@ export default function AdminAccessPage() {
             selectedRoleName={selectedRoleName}
             isAdmin={currentUserIsAdmin}
             saving={saving}
+            showPassword={showPassword}
+            onPasswordVisibilityToggle={() =>
+              setShowPassword((current) => !current)
+            }
             error={modalError}
             onFieldChange={handleUserFieldChange}
             onRoleChange={handleRoleChange}
@@ -1073,6 +1077,8 @@ function UserCreateForm({
   selectedRoleName,
   isAdmin,
   saving,
+  showPassword,
+  onPasswordVisibilityToggle,
   error,
   onFieldChange,
   onRoleChange,
@@ -1133,15 +1139,35 @@ function UserCreateForm({
 
         <label>
           <span>Contraseña inicial</span>
-          <input
-            type="password"
-            name="password"
-            value={userForm.password}
-            onChange={onFieldChange}
-            minLength={8}
-            maxLength={72}
-            required
-          />
+          <div className="access-password-input">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              name="password"
+              value={userForm.password}
+              onChange={onFieldChange}
+              minLength={8}
+              maxLength={72}
+              autoComplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              className="access-password-visibility"
+              onClick={onPasswordVisibilityToggle}
+              aria-label={
+                showPassword
+                  ? 'Ocultar contraseña'
+                  : 'Mostrar contraseña'
+              }
+              title={
+                showPassword
+                  ? 'Ocultar contraseña'
+                  : 'Mostrar contraseña'
+              }
+            >
+              {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
           <small>Debe contener al menos 8 caracteres.</small>
         </label>
       </div>

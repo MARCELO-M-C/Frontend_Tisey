@@ -554,6 +554,18 @@
   outline: none;
 }
 
+.lodging-field select {
+  height: 46px;
+  min-height: 46px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lodging-field select option {
+  white-space: normal;
+}
+
 .lodging-field textarea {
   min-height: 110px;
   padding-block: 0.75rem;
@@ -876,6 +888,11 @@
   padding: 1.25rem;
 }
 
+.lodging-modal-stack {
+  display: grid;
+  gap: 1rem;
+}
+
 .lodging-form {
   display: grid;
   gap: 1rem;
@@ -933,6 +950,12 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
+  align-items: start;
+}
+
+.lodging-form-grid > .lodging-field {
+  align-self: start;
+  align-content: start;
 }
 
 .lodging-form-grid-three {

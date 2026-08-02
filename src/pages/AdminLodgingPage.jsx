@@ -1934,7 +1934,7 @@ export default function AdminLodgingPage() {
               }
               description={
                 selectedRecord.isActive
-                  ? 'No podrá usarse en nuevas reservaciones. Si mantiene estadías reservadas o activas, el backend impedirá la desactivación.'
+                  ? 'No podrá usarse en nuevas reservaciones. Si mantiene estadías reservadas o activas, se impedirá la desactivación.'
                   : 'Volverá a estar disponible para nuevas reservaciones, siempre que su estado operativo lo permita.'
               }
             />
@@ -2173,66 +2173,66 @@ export default function AdminLodgingPage() {
             onClose={closeModal}
             saving={saving}
           >
-            {modalError && (
-              <div className="lodging-alert lodging-alert-error">
-                {modalError}
-              </div>
-            )}
-
-            <ConfirmationBlock
-              danger={pendingStatus === 'CANCELLED'}
-              title={getStayConfirmationTitle(
-                pendingStatus,
-                selectedRecord,
+            <div className="lodging-modal-stack">
+              {modalError && (
+                <div className="lodging-alert lodging-alert-error">
+                  {modalError}
+                </div>
               )}
-              description={getStayConfirmationDescription(
-                pendingStatus,
-              )}
-            />
 
-            <div className="lodging-readonly-grid">
-              <ReadOnlyField
-                label="Huésped principal"
-                value={
-                  selectedRecord.primaryGuest
-                    ?.fullName ?? '—'
-                }
-              />
-              <ReadOnlyField
-                label="Cabaña"
-                value={getCabinDisplay(
-                  selectedRecord.cabin,
+              <ConfirmationBlock
+                danger={pendingStatus === 'CANCELLED'}
+                title={getStayConfirmationTitle(
+                  pendingStatus,
+                  selectedRecord,
+                )}
+                description={getStayConfirmationDescription(
+                  pendingStatus,
                 )}
               />
-            </div>
 
-            <div className="lodging-modal-actions">
-              <button
-                type="button"
-                className="lodging-cancel-button"
-                onClick={closeModal}
-                disabled={saving}
-              >
-                Volver
-              </button>
-              <button
-                type="button"
-                className={
-                  pendingStatus === 'CANCELLED'
-                    ? 'lodging-danger-button'
-                    : 'lodging-save-button'
-                }
-                onClick={
-                  handleStayStatusSubmit
-                }
-                disabled={saving}
-              >
-                {saving
-                  ? 'Procesando...'
-                  : getStayActionTitle(
-                      pendingStatus,
-                    )}
-              </button>
+              <div className="lodging-readonly-grid">
+                <ReadOnlyField
+                  label="Huésped principal"
+                  value={
+                    selectedRecord.primaryGuest
+                      ?.fullName ?? '—'
+                  }
+                />
+                <ReadOnlyField
+                  label="Cabaña"
+                  value={getCabinDisplay(
+                    selectedRecord.cabin,
+                  )}
+                />
+              </div>
+
+              <div className="lodging-modal-actions">
+                <button
+                  type="button"
+                  className="lodging-cancel-button"
+                  onClick={closeModal}
+                  disabled={saving}
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  className={
+                    pendingStatus === 'CANCELLED'
+                      ? 'lodging-danger-button'
+                      : 'lodging-save-button'
+                  }
+                  onClick={handleStayStatusSubmit}
+                  disabled={saving}
+                >
+                  {saving
+                    ? 'Procesando...'
+                    : getStayActionTitle(
+                        pendingStatus,
+                      )}
+                </button>
+              </div>
             </div>
           </LodgingModal>
         )}
@@ -3612,7 +3612,7 @@ function StayForm({
               ))}
             </select>
             <small>
-              El backend verificará cruces de fechas
+              Se verificará cruces de fechas
               antes de guardar.
             </small>
           </label>
@@ -3682,7 +3682,7 @@ function StayForm({
       <FormSection
         number={isCreate ? '4' : '3'}
         title="Resumen estimado"
-        description="El backend recalculará y guardará la tarifa histórica al confirmar."
+        description="Se recalculará y guardará la tarifa histórica al confirmar."
       >
         <div className="lodging-estimate-grid">
           <EstimateItem
