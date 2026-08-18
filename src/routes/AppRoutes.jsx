@@ -7,7 +7,6 @@ import AdminRestaurantTablesPage from '../pages/AdminRestaurantTablesPage'
 import AdminOperationsPage from '../pages/AdminOperationsPage'
 import AdminLodgingPage from '../pages/AdminLodgingPage'
 import AdminMenuPage from '../pages/AdminMenuPage'
-import AdminOrdersPage from '../pages/AdminOrdersPage'
 import BillingPage from '../pages/BillingPage'
 import KitchenPage from '../pages/KitchenPage'
 import WaiterOrdersPage from '../pages/WaiterOrdersPage'
@@ -118,7 +117,7 @@ export default function AppRoutes() {
           path="/admin/orders"
           element={
             <ProtectedRoute requiredPermissions={['ADMIN_ORDERS_MANAGE']}>
-              <AdminOrdersPage />
+              <WaiterOrdersPage />
             </ProtectedRoute>
           }
         />

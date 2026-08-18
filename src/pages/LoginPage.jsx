@@ -1,21 +1,38 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { getDefaultRouteForUser } from '../auth/authHelpers'
 import './LoginPage.css'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const {
+    user,
+    login,
+    isAuthenticated,
+    loadingSession,
+  } = useAuth()
 
   const [form, setForm] = useState({
     username: '',
     password: '',
   })
-
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  if (loadingSession) {
+    return <div className="container py-4">Cargando sesión...</div>
+  }
+
+  if (isAuthenticated) {
+    return (
+      <Navigate
+        to={getDefaultRouteForUser(user)}
+        replace
+      />
+    )
+  }
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -33,16 +50,15 @@ export default function LoginPage() {
 
     try {
       const authenticatedUser = await login(form)
-
       const destination =
         getDefaultRouteForUser(authenticatedUser)
 
       navigate(destination, {
         replace: true,
       })
-    } catch (error) {
+    } catch (requestError) {
       const message =
-        error?.response?.data?.message ||
+        requestError?.response?.data?.message ||
         'No se pudo iniciar sesión. Revisa tu usuario y contraseña.'
 
       setError(message)
@@ -69,13 +85,15 @@ export default function LoginPage() {
 
         <div className="login-content">
           <h2>Iniciar sesión</h2>
-          <div className="login-subtitle">
-          <p>Ingresa tus credenciales para continuar.</p>
 
-          <p className="login-help-text">
-            Si no tienes acceso, contacta al administrador del sistema o pregúntale a tu jefe directo.
-          </p>
-        </div>
+          <div className="login-subtitle">
+            <p>Ingresa tus credenciales para continuar.</p>
+
+            <p className="login-help-text">
+              Si no tienes acceso, contacta al administrador del sistema o
+              pregúntale a tu jefe directo.
+            </p>
+          </div>
 
           {error && (
             <div className="alert alert-danger py-2" role="alert">
@@ -125,8 +143,14 @@ export default function LoginPage() {
                 <button
                   type="button"
                   className="password-toggle"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  onClick={() =>
+                    setShowPassword((current) => !current)
+                  }
+                  aria-label={
+                    showPassword
+                      ? 'Ocultar contraseña'
+                      : 'Mostrar contraseña'
+                  }
                 >
                   {showPassword ? 'Ocultar' : 'Mostrar'}
                 </button>
