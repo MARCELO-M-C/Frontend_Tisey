@@ -17,10 +17,7 @@
   border-radius: 28px;
   color: #ffffff;
   background:
-    linear-gradient(135deg, rgba(47, 93, 64, 0.97), rgba(26, 61, 43, 0.97)),
-    url('/restaurant-header.jpg');
-  background-position: center;
-  background-size: cover;
+    linear-gradient(135deg, rgba(47, 93, 64, 0.97), rgba(26, 61, 43, 0.97));
   box-shadow: 0 20px 45px rgba(29, 72, 47, 0.22);
 }
 

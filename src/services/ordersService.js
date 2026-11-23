@@ -33,11 +33,21 @@ export async function sendOrderRequest(orderId) {
   return data
 }
 
+export async function closeOrderRequest(orderId) {
+  const { data } = await api.post(`/orders/${orderId}/close`)
+  return data
+}
+
 export async function cancelOrderRequest(orderId, reason) {
   const { data } = await api.post(`/orders/${orderId}/cancel`, {
     reason,
   })
 
+  return data
+}
+
+export async function editOrderItemRequest(orderId, itemId, payload) {
+  const { data } = await api.patch(`/orders/${orderId}/items/${itemId}`, payload)
   return data
 }
 

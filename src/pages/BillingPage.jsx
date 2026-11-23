@@ -115,7 +115,7 @@ export default function BillingPage() {
   const billableOrders = useMemo(() => {
     return orders.filter(
       (order) =>
-        ['DELIVERED', 'CLOSED'].includes(order.status) &&
+        order.status === 'CLOSED' &&
         !issuedOrderIds.has(String(order.id)) &&
         !(order.items ?? []).some((item) =>
           invoicedOrderItemIds.has(String(item.id)),
@@ -149,7 +149,7 @@ export default function BillingPage() {
     return orders.filter(
       (order) =>
         String(order.stay?.id) === String(selectedStay.id) &&
-        ['DELIVERED', 'CLOSED'].includes(order.status) &&
+        order.status === 'CLOSED' &&
         !issuedOrderIds.has(String(order.id)) &&
         !(order.items ?? []).some((item) =>
           invoicedOrderItemIds.has(String(item.id)),
@@ -284,7 +284,7 @@ export default function BillingPage() {
       setError('')
 
       const [ordersPayload, staysPayload, invoicesPayload] = await Promise.all([
-        getOrdersRequest(),
+        getOrdersRequest({ status: 'CLOSED' }),
         getStaysRequest(),
         getInvoicesRequest(),
       ])

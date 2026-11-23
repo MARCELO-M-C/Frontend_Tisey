@@ -111,7 +111,9 @@ export default function KitchenPage() {
   }, [])
 
   useEffect(() => {
-    loadKitchenData()
+    const initialLoadId = window.setTimeout(() => {
+      void loadKitchenData()
+    }, 0)
 
     const refreshIntervalId = window.setInterval(() => {
       loadKitchenData({ silent: true })
@@ -122,6 +124,7 @@ export default function KitchenPage() {
     }, CLOCK_INTERVAL_MS)
 
     return () => {
+      window.clearTimeout(initialLoadId)
       window.clearInterval(refreshIntervalId)
       window.clearInterval(clockIntervalId)
     }

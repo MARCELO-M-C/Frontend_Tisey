@@ -20,13 +20,18 @@ import {
 } from '../services/operationsService'
 import { getStaysRequest } from '../services/lodgingService'
 import {
+  addOrderItemsRequest,
+  closeOrderRequest,
   createOrderRequest,
+  editOrderItemRequest,
   getOrdersRequest,
+  updateOrderRequest,
   sendOrderRequest,
   updateOrderItemStatusRequest,
 } from '../services/ordersService'
 import './WaiterOrdersPage.css'
 
+const HISTORY_PAGE_SIZE = 25
 const WARNING_MINUTES = 20
 const CRITICAL_MINUTES = 30
 
@@ -82,7 +87,8 @@ export default function WaiterOrdersPage() {
   const canTakeOrders = isWaiterUser(user) || isAdminUser(user)
   const requiresShiftBeforeAccess = isWaiterUser(user) && !canSuperviseOrders
 
-  const [activeArea, setActiveArea] = useState('')
+  const [selectedArea, setActiveArea] = useState('')
+  const activeArea = selectedArea || (canSuperviseOrders || !canTakeOrders ? 'manage' : 'create')
   const [openShift, setOpenShift] = useState(null)
   const [shiftState, setShiftState] = useState('loading')
   const [closeShiftNotes, setCloseShiftNotes] = useState('')
@@ -102,7 +108,9 @@ export default function WaiterOrdersPage() {
   const [completedOrder, setCompletedOrder] = useState(null)
 
   const [orderScope, setOrderScope] = useState('all')
-  const [managementFilter, setManagementFilter] = useState('active')
+  const [managementFilter, setManagementFilter] = useState('all')
+  const [orderPeriod, setOrderPeriod] = useState('today')
+  const [historyRevision, setHistoryRevision] = useState(0)
   const [managementSearch, setManagementSearch] = useState('')
   const [waiterFilter, setWaiterFilter] = useState('all')
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -115,17 +123,6 @@ export default function WaiterOrdersPage() {
   const [success, setSuccess] = useState('')
   const [now, setNow] = useState(Date.now())
 
-  useEffect(() => {
-    if (!user?.id || activeArea) return
-
-    if (canSuperviseOrders || !canTakeOrders) {
-      setActiveArea('manage')
-      return
-    }
-
-    setActiveArea('create')
-  }, [activeArea, canSuperviseOrders, canTakeOrders, user?.id])
-
   const loadOrders = useCallback(
     async ({ silent = false } = {}) => {
       if (!user?.id) return
@@ -133,7 +130,7 @@ export default function WaiterOrdersPage() {
       try {
         if (!silent) setLoadingOrders(true)
 
-        const payload = await getOrdersRequest()
+        const payload = await getOrdersRequest({ period: 'today' })
         setOrders(normalizeList(payload, 'orders'))
       } catch (requestError) {
         if (!silent) {
@@ -151,14 +148,10 @@ export default function WaiterOrdersPage() {
     [user?.id],
   )
 
-  const loadInitialData = useCallback(async () => {
+  const loadInitialData = useCallback(async (signal) => {
     if (!user?.id) return
 
     try {
-      setLoadingData(true)
-      setShiftState('loading')
-      setError('')
-
       const [
         shiftsPayload,
         menuPayload,
@@ -173,8 +166,10 @@ export default function WaiterOrdersPage() {
         getMenuItemsRequest({ isActive: true }),
         getRestaurantTablesRequest({ isActive: true }),
         getStaysRequest({ status: 'CHECKED_IN' }),
-        getOrdersRequest(),
+        getOrdersRequest({ period: 'today' }),
       ])
+
+      if (signal.aborted) return
 
       const shifts = normalizeList(shiftsPayload, 'shifts')
       const currentShift = shifts.find((shift) => shift.isOpen) ?? null
@@ -186,6 +181,7 @@ export default function WaiterOrdersPage() {
       setStays(normalizeList(staysPayload, 'stays'))
       setOrders(normalizeList(ordersPayload, 'orders'))
     } catch (requestError) {
+      if (signal.aborted) return
       setShiftState('error')
       setError(
         getErrorMessage(
@@ -194,12 +190,19 @@ export default function WaiterOrdersPage() {
         ),
       )
     } finally {
-      setLoadingData(false)
+      if (!signal.aborted) setLoadingData(false)
     }
   }, [user?.id])
 
   useEffect(() => {
-    loadInitialData()
+    const load = new AbortController()
+    const initialLoadId = window.setTimeout(() => {
+      void loadInitialData(load.signal)
+    }, 0)
+    return () => {
+      window.clearTimeout(initialLoadId)
+      load.abort()
+    }
   }, [loadInitialData])
 
   useEffect(() => {
@@ -211,7 +214,7 @@ export default function WaiterOrdersPage() {
   }, [])
 
   useEffect(() => {
-    if (activeArea !== 'manage') return undefined
+    if (activeArea !== 'manage' || orderPeriod !== 'today') return undefined
 
     const interval = window.setInterval(() => {
       loadOrders({ silent: true })
@@ -227,7 +230,7 @@ export default function WaiterOrdersPage() {
       window.clearInterval(interval)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [activeArea, loadOrders])
+  }, [activeArea, loadOrders, orderPeriod])
 
   const activeMenuItems = useMemo(
     () => menuItems.filter((item) => item.isActive),
@@ -815,7 +818,25 @@ export default function WaiterOrdersPage() {
     }
   }
 
+  async function applyOrderChange(order, action, message) {
+    clearMessages()
+    try {
+      setOrderActionId(`edit-${order.id}`)
+      const updatedOrder = await action()
+      replaceOrder(updatedOrder)
+      setSuccess(message)
+      return true
+    } catch (requestError) {
+      const message = getErrorMessage(requestError, 'No se pudo actualizar la orden.')
+      setError(message)
+      return message
+    } finally {
+      setOrderActionId('')
+    }
+  }
+
   function replaceOrder(updatedOrder) {
+    setHistoryRevision((value) => value + 1)
     setOrders((current) =>
       current.map((order) =>
         String(order.id) === String(updatedOrder.id)
@@ -1113,6 +1134,19 @@ export default function WaiterOrdersPage() {
       )}
 
       {activeArea === 'manage' && (
+        <>
+          <div className="waiter-status-filters" aria-label="Período de órdenes">
+            {[['today', 'Hoy'], ['history', 'Historial']].map(([period, label]) => (
+              <button key={period} type="button" className={orderPeriod === period ? 'active' : ''}
+                aria-pressed={orderPeriod === period} onClick={() => {
+                  setOrderPeriod(period)
+                  if (period === 'today' && orderPeriod !== period) void loadOrders()
+                }}>{label}</button>
+            ))}
+          </div>
+          {orderPeriod === 'history' ? (
+            <OrderHistory revision={historyRevision} onOpenDetail={setSelectedOrder} />
+          ) : (
         <ManageOrdersArea
           canSuperviseOrders={canSuperviseOrders}
           user={user}
@@ -1137,11 +1171,20 @@ export default function WaiterOrdersPage() {
           onDeliverAll={handleDeliverAll}
           onSendDraft={handleSendDraft}
         />
+          )}
+        </>
       )}
 
       {selectedOrder && (
         <OrderDetailModal
+          key={selectedOrder.id}
           order={selectedOrder}
+          canOperate={canSuperviseOrders || String(selectedOrder.waiter?.id) === String(user?.id)}
+          menuItems={activeMenuItems}
+          onUpdate={(order, data) => applyOrderChange(order, () => updateOrderRequest(order.id, data), 'Orden actualizada.')}
+          onAddItem={(order, item) => applyOrderChange(order, () => addOrderItemsRequest(order.id, [item]), 'Producto agregado.')}
+          onEditItem={(order, item, values) => applyOrderChange(order, () => editOrderItemRequest(order.id, item.id, values), 'Producto actualizado.')}
+          onCloseOrder={(order) => applyOrderChange(order, () => closeOrderRequest(order.id), 'Orden cerrada y disponible en Caja.')}
           orderActionId={orderActionId}
           onClose={() => setSelectedOrder(null)}
           onDeliverItem={handleDeliverItem}
@@ -1689,6 +1732,48 @@ function CreateOrderArea({
   )
 }
 
+function OrderHistory({ revision, onOpenDetail }) {
+  const [page, setPage] = useState(1)
+  const [result, setResult] = useState(null)
+
+  useEffect(() => {
+    let current = true
+    getOrdersRequest({ period: 'history', page })
+      .then((orders) => {
+        if (current) setResult({ page, orders: normalizeList(orders, 'orders') })
+      })
+      .catch((error) => {
+        if (current) setResult({ page, error: getErrorMessage(error, 'No se pudo cargar el historial.') })
+      })
+    return () => { current = false }
+  }, [page, revision])
+
+  const current = result?.page === page ? result : null
+  const orders = current?.orders ?? []
+  return (
+    <section className="waiter-management" aria-label="Historial de órdenes">
+      {!current && <p role="status">Cargando órdenes...</p>}
+      {current?.error && <p role="alert">{current.error}</p>}
+      {current?.orders && orders.length === 0 && <p>No hay órdenes en esta página.</p>}
+      <div className="waiter-order-grid">
+        {orders.slice(0, HISTORY_PAGE_SIZE).map((order) => (
+          <article key={order.id} className="waiter-order-card">
+            <strong>{order.orderCode} · {getOrderDestination(order)}</strong>
+            <span>{new Date(order.createdAt).toLocaleDateString('es-NI', { timeZone: 'America/Managua' })} · {getUserName(order.waiter)}</span>
+            <OrderStatusBadge status={order.status} />
+            <button type="button" className="waiter-secondary-button" onClick={() => onOpenDetail(order)}>Ver detalle</button>
+          </article>
+        ))}
+      </div>
+      <nav className="waiter-status-filters" aria-label="Páginas del historial">
+        <button type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>Anterior</button>
+        <span aria-live="polite">Página {page}</span>
+        <button type="button" disabled={orders.length <= HISTORY_PAGE_SIZE} onClick={() => setPage(page + 1)}>Siguiente</button>
+      </nav>
+    </section>
+  )
+}
+
 function ManageOrdersArea({
   canSuperviseOrders,
   user,
@@ -1996,7 +2081,7 @@ function OrderCard({
 
       {order.status === 'DELIVERED' && (
         <div className="waiter-billing-ready-note">
-          ✓ Entregada · lista para facturación
+          ✓ Entregada · pendiente de cierre
         </div>
       )}
 
@@ -2016,12 +2101,26 @@ function OrderCard({
 function OrderDetailModal({
   order,
   orderActionId,
+  canOperate,
+  menuItems,
+  onUpdate,
+  onAddItem,
+  onEditItem,
+  onCloseOrder,
   onClose,
   onDeliverItem,
   onDeliverAll,
 }) {
   const readyItems = getReadyItems(order)
   const allBusy = orderActionId === `all-${order.id}`
+  const editable = canOperate && !['CLOSED', 'CANCELLED'].includes(order.status)
+  const [actionError, setActionError] = useState('')
+
+  async function runAction(action) {
+    setActionError('')
+    const result = await action()
+    if (result !== true) setActionError(result)
+  }
 
   return (
     <div
@@ -2065,6 +2164,45 @@ function OrderDetailModal({
             <strong>{formatMoney(order.summary?.subtotal ?? 0)}</strong>
           </div>
 
+          {actionError && <p role="alert">{actionError}</p>}
+          {editable && (
+            <details>
+              <summary>Editar pedido</summary>
+              <form className="waiter-management-filters" onSubmit={(event) => {
+                event.preventDefault()
+                const data = new FormData(event.currentTarget)
+                void runAction(() => onUpdate(order, { customerName: data.get('customerName').trim() || null, notes: data.get('notes') }))
+              }}>
+                <label>Cliente<input name="customerName" defaultValue={order.customerName ?? ''} maxLength={160} /></label>
+                <label>Nota general<input name="notes" defaultValue={order.notes ?? ''} maxLength={500} /></label>
+                <button type="submit" className="waiter-secondary-button" disabled={Boolean(orderActionId)}>Guardar cambios</button>
+              </form>
+              <form className="waiter-management-filters" onSubmit={(event) => {
+                event.preventDefault()
+                const data = new FormData(event.currentTarget)
+                void runAction(() => onAddItem(order, { menuItemId: data.get('menuItemId'), quantity: Number(data.get('quantity')), itemNotes: data.get('itemNotes') }))
+              }}>
+                <label>Producto<select name="menuItemId" required defaultValue="">
+                  <option value="" disabled>Seleccionar producto</option>
+                  {menuItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select></label>
+                <label>Cantidad<input name="quantity" type="number" min="1" max="999" defaultValue="1" required /></label>
+                <label>Nota del producto<input name="itemNotes" maxLength={255} /></label>
+                <button type="submit" className="waiter-secondary-button" disabled={Boolean(orderActionId)}>Agregar producto</button>
+              </form>
+            </details>
+          )}
+          {editable && order.status === 'DELIVERED' && (
+            <button type="button" className="waiter-secondary-button" disabled={Boolean(orderActionId)}
+              onClick={() => {
+                if (window.confirm('¿Cerrar este pedido y enviarlo a Caja? Después del cierre no podrás editarlo.')) {
+                  void runAction(() => onCloseOrder(order))
+                }
+              }}>
+              Cerrar y enviar a Caja
+            </button>
+          )}
+
           {order.notes && (
             <div className="waiter-order-note">
               <span>Nota general</span>
@@ -2080,7 +2218,7 @@ function OrderDetailModal({
               </small>
             </div>
 
-            {readyItems.length > 1 && (
+            {editable && readyItems.length > 1 && (
               <button
                 type="button"
                 className="waiter-deliver-all-button"
@@ -2107,8 +2245,22 @@ function OrderDetailModal({
 
                 <div className="waiter-modal-item-action">
                   <ItemStatusBadge status={item.itemStatus} />
+                  {editable && item.itemStatus === 'PENDING' && (
+                    <details>
+                      <summary>Editar producto</summary>
+                      <form className="waiter-management-filters" onSubmit={(event) => {
+                        event.preventDefault()
+                        const data = new FormData(event.currentTarget)
+                        void runAction(() => onEditItem(order, item, { quantity: Number(data.get('quantity')), itemNotes: data.get('itemNotes') }))
+                      }}>
+                        <label>Cantidad<input name="quantity" type="number" min="1" max="999" defaultValue={item.quantity} required /></label>
+                        <label>Nota<input name="itemNotes" defaultValue={item.itemNotes ?? ''} maxLength={255} /></label>
+                        <button type="submit" className="waiter-secondary-button" disabled={Boolean(orderActionId)}>Guardar producto</button>
+                      </form>
+                    </details>
+                  )}
 
-                  {item.itemStatus === 'READY' && (
+                  {editable && item.itemStatus === 'READY' && (
                     <button
                       type="button"
                       onClick={() => onDeliverItem(order, item)}

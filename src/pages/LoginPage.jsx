@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { getDefaultRouteForUser } from '../auth/authHelpers'
+import logo from '../assets/EcoPosada_Tisey_logo.png'
 import './LoginPage.css'
 
 export default function LoginPage() {
@@ -73,7 +74,7 @@ export default function LoginPage() {
         <div className="login-brand">
           <div className="login-logo-wrapper">
             <img
-              src="src/assets/EcoPosada_Tisey_logo.png"
+              src={logo}
               alt="Logo EcoPosada Tisey"
               className="login-logo"
             />
