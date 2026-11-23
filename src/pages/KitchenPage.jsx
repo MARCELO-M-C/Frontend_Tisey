@@ -15,6 +15,8 @@ import {
 import './KitchenPage.css'
 
 const STATION_STORAGE_KEY = 'kitchenStationId'
+const MAIN_KITCHEN_CODE = 'COCINA_1'
+const SECOND_KITCHEN_CODE = 'COCINA_2'
 const WARNING_MINUTES = 15
 const CRITICAL_MINUTES = 30
 const REFRESH_INTERVAL_MS = 15_000
@@ -133,18 +135,18 @@ export default function KitchenPage() {
   }, [stations, selectedStationId])
 
   const kitchenCards = useMemo(() => {
-    if (!selectedStationId) return []
+    if (!selectedStation) return []
 
     return orders
       .map((order) =>
-        buildKitchenCard(order, selectedStationId, now),
+        buildKitchenCard(order, selectedStation, now),
       )
       .filter(Boolean)
       .sort(
         (firstCard, secondCard) =>
           secondCard.sentAtMs - firstCard.sentAtMs,
       )
-  }, [orders, selectedStationId, now])
+  }, [orders, selectedStation, now])
 
   const stats = useMemo(() => {
     return {
@@ -448,6 +450,9 @@ export default function KitchenPage() {
 
                       <div className="kitchen-item-content">
                         <strong>{item.itemName}</strong>
+                        {!belongsToStation(item, selectedStation) && (
+                          <p>Prepara: {item.station.name}</p>
+                        )}
 
                         {item.itemNotes && (
                           <p>{item.itemNotes}</p>
@@ -504,15 +509,23 @@ export default function KitchenPage() {
   )
 }
 
-function buildKitchenCard(order, stationId, now) {
-  const stationItems = (order.items ?? []).filter(
+function belongsToStation(item, station) {
+  return String(item.station?.id ?? item.stationId) === String(station.id)
+}
+
+function buildKitchenCard(order, station, now) {
+  const canSeeSecondKitchen = station.code.toUpperCase() === MAIN_KITCHEN_CODE
+  const visibleItems = (order.items ?? []).filter(
     (item) =>
-      String(item.station?.id ?? item.stationId) ===
-        String(stationId) &&
-      ACTIVE_ITEM_STATUSES.has(item.itemStatus),
+      ACTIVE_ITEM_STATUSES.has(item.itemStatus) &&
+      (belongsToStation(item, station) ||
+        (canSeeSecondKitchen &&
+          item.station?.code?.toUpperCase() === SECOND_KITCHEN_CODE)),
   )
 
-  if (stationItems.length === 0) return null
+  if (visibleItems.length === 0) return null
+
+  const stationItems = visibleItems.filter((item) => belongsToStation(item, station))
 
   const sentAtValue = order.sentAt || order.createdAt
   const sentAtMs = new Date(sentAtValue).getTime()
@@ -525,7 +538,7 @@ function buildKitchenCard(order, stationId, now) {
 
   return {
     order,
-    items: stationItems,
+    items: visibleItems,
     pendingItems: stationItems.filter(
       (item) => item.itemStatus === 'PENDING',
     ),
